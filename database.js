@@ -1,7 +1,15 @@
+/*
+ * Cache based database using replit database for persistance.
+*/
 const Database = require("@replit/database");
 const db = new Database();
 const { Channel } = require('discord.js');
 
+/**
+ * Main cache.
+ * On get, keys not present in the cache are fetched from the database.
+ * On set, keys and values are stored here before getting written to the database.
+ */
 var cache = {};
 
 var logger = {send:function(){}};
@@ -19,6 +27,13 @@ function setLogger(logChannel){
   }
 }
 
+/**
+ * Get value for a key.
+ * If the key isn't present in the cache it is fetched from the underlying database, if the key isn't found in the database the default value is returned.
+ * @param key - key to get
+ * @param defaultValue - default value to return if the key isn't found
+ * @return - the value of the key from the cache/database or the defaultValue if not found.
+ */
 async function getKey(key,defaultValue=""){
   if(cache[key]){
     value = cache[key];
@@ -30,6 +45,12 @@ async function getKey(key,defaultValue=""){
   return value;
 }
 
+/**
+ * Set the value for a key.
+ * The cache is updated then the key and value is written to the database.
+ * @param key - key to set
+ * @param value - value to set
+ */
 async function setKey(key,value){
   let changed = false;
   if(cache[key] != value){
@@ -41,6 +62,11 @@ async function setKey(key,value){
   }
 }
 
+/**
+ * Fetch key from the database
+ * The cache is updated with the retrieved value.
+ * @param key - key to fetch
+ */
 async function fetch(key){
   try{
       value = await db.get(key,{raw:true});
@@ -71,6 +97,11 @@ async function fetch(key){
     }
 }
 
+/**
+ * Write the value of a key in the cache to the database.
+ * If writting fails it is re-attemped in 5 seconds.
+ * @param key - key to write the value of (value retrieved from the cache)
+ */
 async function write(key){
   value = cache[key];
   try{
@@ -92,6 +123,11 @@ async function write(key){
   }
 }
 
+/**
+ * Remove a key from the database.
+ * If they key is removed from the database successfully it is also removed from the cache.
+ * @param key - key to remove
+ */
 async function deleteKey(key){
   try{
     await db.delete(key);
@@ -103,6 +139,13 @@ async function deleteKey(key){
   }
 }
 
+/**
+ * List the keys in the database.
+ * If prefix is excluded (or undefined) then all keys are returned.
+ * If a prefix is given then only keys begining with the prefix will be returned.
+ * @param prefix - prefix of keys to return (Optional)
+ * @return array of keys in the database that match the prefix.
+ */
 async function list(prefix=undefined){
   let keys = [];
   try{
@@ -117,6 +160,9 @@ async function list(prefix=undefined){
   return keys;
 }
 
+/**
+ * Remove all keys from the database.
+ */
 async function clear(){
   keys = await list();
   for(let key of keys){
