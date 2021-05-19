@@ -12,6 +12,9 @@ discordManager.init(db);
 const clientId = process.env.TWITCH_ID;
 const clientSecret = process.env.TWITCH_SECRET;
 const prefix = process.env.DISCORD_PREFIX;
+const botId = process.env.DISCORD_CLIENT;
+const botPerms = process.env.DISCORD_PERMS;
+const botScopes = process.env.DISCORD_SCOPES;
 
 const OFFLINE = "OFFLINE";
 const ONLINE = "ONLINE";
@@ -62,7 +65,7 @@ async function checkLive(channel){
 		await getToken();
 	}
 	let resp = await axios.get(`https://api.twitch.tv/helix/search/channels?query=${channel}&first=1`);
-  let oldStatus = await db.get(`Live:${channel}`,ONLINE);
+  let oldStatus = await db.get(`Live:${channel}`,OFFLINE);
   if(oldStatus == null || oldStatus == ""){
     oldStatus = OFFLINE;
   }
@@ -71,11 +74,6 @@ async function checkLive(channel){
     let gameResp = await axios.get(`https://api.twitch.tv/helix/games?id=${resp.data.data[0].game_id}`);
     logger.log("Sending Message");
     sendMessage(channel,gameResp.data.data[0].name,resp.data.data[0].title,resp.data.data[0].display_name);
-  }
-  else if(oldStatus == OFFLINE && newStatus == ONLINE){
-    let user = await client.users.fetch(process.env.OWNER_ID);
-    let dm = await user.createDM();
-    dm.send(`${channel} went live but is on cooldown`);
   }
   if(oldStatus != newStatus){
     logger.log(`${channel} status changed to: `+newStatus);
@@ -107,7 +105,6 @@ async function getLive(){
 
 async function sendMessage(channel,game,title,name){
   let channels = await db.get(`Discord:${channel}`);
-  let pinged = false;
   for(let guildId in channels){
     try{
       let guild = await client.guilds.fetch(guildId.replace("id",""));
@@ -167,17 +164,22 @@ function parseDiscordCommand(msg) {
     return;
   }
 
+  if(msg.author.id === process.env.OWNER_ID && processOwnerCommands(msg)){
+    return;
+  }
+
+  if (msg.channel.type === "dm"){
+    // We should always have send message perms in a dm.
+    msg.channel.send(":x: This command must be used in a server.");
+    return;
+  }
+
   if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
     // We can't send in this channel
     if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
       // But we can react so indicate the error
       msg.react('⚠️');
     }
-    return;
-  }
-
-  if (msg.channel.type === "dm"){
-    msg.channel.send(":x: This command must be used in a server.");
     return;
   }
 
@@ -206,35 +208,46 @@ function parseDiscordCommand(msg) {
     }
     var id = args[1].replace("<#","").replace(">","");
 
-    // If blank str, use active channel.
-    let channelobj;
-    if(id === "") {
-      channelobj = msg.channel;
-    }
-    else {
-      channelobj = msg.guild.channels.resolve(id);
-    }
-
-    if(channelobj !== undefined && channelobj.isText()) {
-      let channelid = channelobj.id;
-      let perm = checkPerms(channelid,channelobj.guild)
-      if(perm !== CANT_SEND){
-        discordManager.addChannel(args[0].toLowerCase(),msg.guild.id,channelid).then((result)=>{
-          if(result && perm == CAN_SEND){
-            msg.channel.send(`:white_check_mark: Notifications will be sent to <#${channelid}> when ${args[0].toLowerCase()} goes live`);
-          }
-          else if(result && perm == CANT_EMBED){
-            msg.channel.send(`:warning: Notifications will be sent to <#${channelid}> when ${args[0].toLowerCase()} goes live but links won't be embeded`);
-          }
-          else{
-            msg.channel.send(`:x: Not enough space to add ${args[0].toLowerCase()}, use ${prefix}availablelist to list the channels that can be added.`);
-          }
-        });
+    db.get("DefaultChannel:"+msg.guild.id).then((defaultChannelId) => {
+      defaultChannelId = defaultChannelId.replace("id","");
+      let channelobj = null;
+      if(id) {
+        channelobj = msg.guild.channels.resolve(id);
       }
-    }
-    else {
-      msg.channel.send(":x: Failed to identify the channel you specified.");
-    }
+      if(channelobj === null && defaultChannelId){
+        channelobj = msg.guild.channels.resolve(defaultChannelId);
+        if(channelobj === null){
+          msg.channel.send(":warning: The default channel does not exist");
+        }
+      }
+      if(channelobj === null) {
+        channelobj = msg.channel;
+      }
+
+      if(channelobj !== undefined && channelobj !== null && channelobj.isText()) {
+        let channelid = channelobj.id;
+        let perm = checkPerms(channelid,channelobj.guild)
+        if(perm !== CANT_SEND){
+          discordManager.addChannel(args[0].toLowerCase(),msg.guild.id,channelid).then((result)=>{
+            if(result && perm == CAN_SEND){
+              msg.channel.send(`:white_check_mark: Notifications will be sent to <#${channelid}> when ${args[0].toLowerCase()} goes live`);
+            }
+            else if(result && perm == CANT_EMBED){
+              msg.channel.send(`:warning: Notifications will be sent to <#${channelid}> when ${args[0].toLowerCase()} goes live but links won't be embeded`);
+            }
+            else{
+              msg.channel.send(`:x: Not enough space to add ${args[0].toLowerCase()}, use ${prefix}availablelist to list the channels that can be added.`);
+            }
+          });
+        }
+        else{
+            msg.channel.send(`:x: Please ensure <@${client.user.id}> has permission to send messages in <#${channelid}>. The channel was not added.`);
+          }
+      }
+      else {
+        msg.channel.send(":x: Failed to identify the channel you specified.");
+      }
+    });
   }
   else if(cmd.startsWith("REMOVE")) {
     var str = msg.content.toUpperCase().replace(prefix.toUpperCase() + "REMOVE ", "");
@@ -281,7 +294,7 @@ function parseDiscordCommand(msg) {
       else{
         discordManager.removeMessage(args[0].toLowerCase(),msg.guild.id,message.trim()).then((result)=>{
           if(result){
-            discordManager.getMessage(str.toLowerCase()).then((message)=>{
+            discordManager.getMessage(str.toLowerCase(),msg.guild.id).then((message)=>{
               if(message){
                 msg.channel.send(`:white_check_mark: Notification Message Reset to server default for ${str.toLowerCase()}`);
               }
@@ -297,6 +310,41 @@ function parseDiscordCommand(msg) {
       }
     });
   }
+  else if(cmd.startsWith("DEFAULTCHANNEL")){
+    let str = msg.content.replace(new RegExp(`${prefix}defaultchannel ?`,'i'),"");
+    let args = str.split(" ");
+    if(!args[0]){
+      args[0] = "";
+    }
+    var id = args[0].replace("<#","").replace(">","");
+
+    if(id === "") {
+      db.delete("DefaultChannel:"+msg.guild.id).then(()=> {
+        msg.channel.send(":white_check_mark: Default channel cleared.")
+      });
+    }
+    else {
+      let channelobj = msg.guild.channels.resolve(id);
+      if(channelobj !== undefined && channelobj.isText()) {
+        let channelid = channelobj.id;
+        let guildid = channelobj.guild.id;
+        let perm = checkPerms(channelid,channelobj.guild)
+        if(perm !== CANT_SEND){
+          db.set("DefaultChannel:"+guildid,"id"+channelid).then(() => {
+            if(perm == CAN_SEND){
+              msg.channel.send(`:white_check_mark: Default channel set to <#${channelid}>`);
+            }
+            else if(result && perm == CANT_EMBED){
+              msg.channel.send(`:warning: Default channel set to <#${channelid}> but links won't be embeded`);
+            }
+          });
+        }
+        else{
+          msg.channel.send(`:x: Please ensure <@${client.user.id}> has permission to send messages in <#${channelid}>. The default channel was not set.`);
+        }
+      }
+    }
+  }
   else if(cmd.startsWith("DEFAULT")){
     let message = msg.content.replace(new RegExp(`${prefix}default ?`,'i'),"");
     if(message){
@@ -305,7 +353,7 @@ function parseDiscordCommand(msg) {
           msg.channel.send(`:white_check_mark: Default Notifications will now read '${message}'`);
         }
         else{
-          msg.channel.send(":x: Could not add global");
+          msg.channel.send(":x: Could not add default");
         }
       });
     }
@@ -315,7 +363,7 @@ function parseDiscordCommand(msg) {
           msg.channel.send(`:white_check_mark: Default Notification Message Reset`);
         }
         else{
-          msg.channel.send(":x: Could not remove global");
+          msg.channel.send(":x: Could not remove default");
         }
       });
     }
@@ -407,6 +455,75 @@ function parseDiscordCommand(msg) {
   }
 }
 
+function processOwnerCommands(msg){
+  var cmd = msg.content.toUpperCase().replace(prefix.toUpperCase(), "");
+
+  if(cmd.startsWith("PURGE")){
+    if (msg.channel.type !== "dm"){
+      if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+        // We can't send in this channel
+        if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+          // But we can react so indicate the error
+          msg.react('⚠️');
+        }
+      }
+      else{
+        msg.channel.send(":x: This command must be used in a dm");
+      }
+      return true; // Command handled do not run main handler
+    }
+    let funct = async () => {
+      let s = "";
+      let keys = await db.list("Discord:");
+      for(key of keys){
+        let channel = key.replace("Discord:","");
+        let channels = await db.get(key);
+        for(let guildId in channels){
+          try{
+            let guild = await client.guilds.fetch(guildId.replace("id",""));
+          }
+          catch{
+            // The guild is unavailable remove it.
+              let result = await discordManager.removeAll(channel,guildId);
+              if(result){
+                await db.delete("DefaultChannel:"+guildId);
+                s += `Purged ${channel} => ${guildId}\n`;
+              }
+              else{
+                s += `Could not Purge ${channel} => ${guildId}\n`;
+              }
+          }
+        }
+      }
+      if(!s){
+        s = "No channels were purged.";
+      }
+      msg.channel.send(s,{split:true});
+    };
+    msg.channel.send("Purging...");
+    funct();
+    return true; // Command handled do not run main handler
+  }
+  else if(cmd.startsWith("INVITE")){
+    if (msg.channel.type !== "dm"){
+      if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+        // We can't send in this channel
+        if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+          // But we can react so indicate the error
+          msg.react('⚠️');
+        }
+      }
+      else{
+        msg.channel.send(":x: This command must be used in a dm");
+      }
+      return true; // Command handled do not run main handler
+    }
+    msg.channel.send(`https://discord.com/api/oauth2/authorize?client_id=${botId}&permissions=${botPerms}&scope=${botScopes}`);
+    return true;
+  }
+  return false; // Command not handled revert to main handler
+}
+
 client.on("ready", () => {
 	if(firstLogin !== 1) {
 	  firstLogin = 1;
@@ -455,7 +572,17 @@ client.on("error", (err) => {
 client.on("message", (msg) => {
 	if(msg.author !== client.user) {
 	  if(msg.content.toUpperCase().startsWith(prefix.toUpperCase())) {
-		parseDiscordCommand(msg);
+      if(msg.content.toUpperCase() === `${prefix.toUpperCase()}PING`){
+        const pingA = Date.now() - msg.createdTimestamp;
+        msg.channel.send(':information_source: Pong!').then((message) =>{
+          const pingB = Date.now() - message.createdTimestamp;
+          const pingAB = pingA + pingB;
+          message.edit(`:information_source: Pong! - Time taken **${pingAB}ms**`);
+        });
+      }
+      else{
+		    parseDiscordCommand(msg);
+      }
 	  }
 	}
   else{

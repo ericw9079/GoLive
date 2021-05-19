@@ -42,6 +42,9 @@ async function getKey(key,defaultValue=""){
     await fetch(key);
     value = cache[key]?cache[key]:defaultValue;
   }
+  if(value != undefined && value == cache[key]){
+    value = JSON.parse(JSON.stringify(value));
+  }
   return value;
 }
 
@@ -69,7 +72,7 @@ async function setKey(key,value){
  */
 async function fetch(key){
   try{
-      value = await db.get(key,{raw:true});
+      value = await db.get(key);
       if(value){
         try{
           value = JSON.parse(value);
@@ -106,6 +109,7 @@ async function write(key){
   value = cache[key];
   try{
     if(typeof(value) == "object"){
+      value = JSON.parse(JSON.stringify(value));
       for(let k in value){
         value[k] = encodeURIComponent(value[k]);
       }

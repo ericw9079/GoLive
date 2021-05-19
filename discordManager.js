@@ -13,14 +13,14 @@ async function addChannel(twitch,guild,channel){
     // Rate limit imposed by Twitch
     return false;
   }
-  let value = await db.get("Discord:"+twitch);
+  let value = await db.get("Discord:"+twitch,{});
   if(value === null){
     value = {};
   }
   if(!guild.startsWith('id')){
     guild = 'id'+guild;
   }
-  value[guild] = channel;
+  value[guild] = channel+"";
   await db.set("Discord:"+twitch,value);
   return true;
 }
@@ -29,7 +29,7 @@ async function removeChannel(twitch,discord){
   if(db == null){
     return false;
   }
-  let value = await db.get("Discord:"+twitch);
+  let value = await db.get("Discord:"+twitch,{});
   if(value === null){
     value = {};
   }
@@ -37,11 +37,12 @@ async function removeChannel(twitch,discord){
     discord = 'id'+discord;
   }
   delete value[discord];
-  if(value){
+  if(value && Object.keys(value).length !== 0){
     await db.set("Discord:"+twitch,value);
   }
   else{
     await db.delete("Discord:"+twitch);
+    await db.delete("Live:"+twitch);
   }
   return true;
 }
@@ -50,7 +51,7 @@ async function addMessage(twitch,guild,message){
   if(db == null){
     return false;
   }
-  let value = await db.get("Message:"+twitch);
+  let value = await db.get("Message:"+twitch,{});
   if(value === null){
     value = {};
   }
@@ -66,7 +67,7 @@ async function removeMessage(twitch,discord){
   if(db == null){
     return false;
   }
-  let value = await db.get("Message:"+twitch);
+  let value = await db.get("Message:"+twitch,{});
   if(value === null){
     value = {};
   }
@@ -87,7 +88,7 @@ async function addDefault(guild,message){
   if(db == null){
     return false;
   }
-  let value = await db.get("Default");
+  let value = await db.get("Default",{});
   if(value === null){
     value = {};
   }
@@ -103,7 +104,7 @@ async function removeDefault(discord){
   if(db == null){
     return false;
   }
-  let value = await db.get("Default");
+  let value = await db.get("Default",{});
   if(value === null){
     value = {};
   }
@@ -112,10 +113,10 @@ async function removeDefault(discord){
   }
   delete value[discord];
   if(value && Object.keys(value).length === 0){
-    await db.delete("Default:"+twitch);
+    await db.delete("Default");
   }
   else{
-    await db.set("Default:"+twitch,value);
+    await db.set("Default",value);
   }
   return true;
 }
@@ -124,7 +125,7 @@ async function getMessage(twitch,discord,global=true){
   if(db == null){
     return false;
   }
-  let value = await db.get("Message:"+twitch);
+  let value = await db.get("Message:"+twitch,{});
   if(value === null){
     value = {};
   }
@@ -132,7 +133,7 @@ async function getMessage(twitch,discord,global=true){
     discord = 'id'+discord;
   }
   if(global){
-    let global = await db.get("Default");
+    let global = await db.get("Default",{});
     if(!global){
       global = {};
     }
@@ -145,7 +146,7 @@ async function getChannel(twitch,discord){
   if(db == null){
     return false;
   }
-  let value = await db.get("Discord:"+twitch);
+  let value = await db.get("Discord:"+twitch,{});
   if(value === null){
     value = {};
   }
