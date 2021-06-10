@@ -9,7 +9,7 @@ async function addChannel(twitch,guild,channel){
     return false;
   }
   let channels = await db.list("Discord:");
-  if(channels.lenght >= 300 && !channels.includes("Discord:"+twitch)){
+  if(channels.lenght >= 700 && !channels.includes("Discord:"+twitch)){
     // Rate limit imposed by Twitch
     return false;
   }

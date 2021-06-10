@@ -30,6 +30,7 @@ const COOLDOWN = 300000; // cooldown time between state changes (5 min)
 var firstLogin = 0;
 var notifications = [];
 var interval;
+var retryCount = 1;
 
 var cooldowns = new Set();
 
@@ -69,17 +70,20 @@ async function checkLive(channel){
   if(oldStatus == null || oldStatus == ""){
     oldStatus = OFFLINE;
   }
+  if(!resp.data.data[0]){
+    resp.data.data[0] = {is_live:false};
+  }
   let newStatus = resp.data.data[0].is_live?ONLINE:OFFLINE;
   if(oldStatus == OFFLINE && newStatus == ONLINE && !cooldowns.has(channel)){
-    let gameResp = await axios.get(`https://api.twitch.tv/helix/games?id=${resp.data.data[0].game_id}`);
     logger.log("Sending Message");
-    sendMessage(channel,gameResp.data.data[0].name,resp.data.data[0].title,resp.data.data[0].display_name);
+    sendMessage(channel,resp.data.data[0].game_name,resp.data.data[0].title,resp.data.data[0].display_name);
   }
   if(oldStatus != newStatus){
     logger.log(`${channel} status changed to: `+newStatus);
     cooldowns.add(channel);
     setTimeout((c) => {
       cooldowns.delete(c);
+      logger.log(`${c} status change acknowledged`);
     }, COOLDOWN,channel);
   }
   await db.set(`Live:${channel}`,newStatus);
@@ -91,16 +95,15 @@ async function getLive(){
     for(let channel of channels){
       await checkLive(channel.substring(8));
     }
+    retryCount = 1;
   }
   catch (e){
-    logger.error("Twitch ran into a problem");
-    client.users.fetch(process.env.OWNER_ID).then((user) => {
-      user.createDM().then((channel) => {
-        channel.send(`Twitch ran into a problem:\n${e}`);
-      }).catch((e1)=>{logger.error(e1)});
-    }).catch((e2)=>{logger.error(e2)});
+    logger.error(`Twitch ran into a problem\n${e}`);
+    if(retryCount < 10){
+      retryCount++;
+    }
   }
-  interval = setTimeout(getLive,DELAY);
+  interval = setTimeout(getLive,DELAY*retryCount);
 }
 
 async function sendMessage(channel,game,title,name){

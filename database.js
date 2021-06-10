@@ -72,7 +72,7 @@ async function setKey(key,value){
  */
 async function fetch(key){
   try{
-      value = await db.get(key);
+      value = await db.get(key,{raw:true});
       if(value){
         try{
           value = JSON.parse(value);
