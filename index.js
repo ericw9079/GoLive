@@ -6,6 +6,7 @@ const db = require("./database");
 const discordManager = require("./discordManager");
 const help = require("./help");
 const logger = require("./logger.js");
+const debugLogger = require("./debugLogger.js");
 
 discordManager.init(db);
 
@@ -72,6 +73,9 @@ async function checkLive(channel){
   }
   if(!resp.data.data[0]){
     resp.data.data[0] = {is_live:false};
+  }
+  if(resp.data.data[0].broadcaster_login !== channel){
+    return;
   }
   let newStatus = resp.data.data[0].is_live?ONLINE:OFFLINE;
   if(oldStatus == OFFLINE && newStatus == ONLINE && !cooldowns.has(channel)){
@@ -198,7 +202,7 @@ function parseDiscordCommand(msg) {
   if(cmd.startsWith("ADD")) {
     let str = msg.content.toUpperCase().replace(prefix.toUpperCase() + "ADD ", "");
     let args = str.split(" ");
-    if(!args[0]){
+    if(!args[0] || args[0] == prefix.toUpperCase() + "ADD"){
       msg.channel.send(":x: Please specify the twitch channel.");
       return;
     }
@@ -270,7 +274,7 @@ function parseDiscordCommand(msg) {
   else if(cmd.startsWith("MSG") || cmd.startsWith("MESSAGE")){
     var str = msg.content.toUpperCase().replace(new RegExp(`${prefix}(?:msg |message )`,'i'), "");
     let args = str.split(" ");
-    if(!args[0]){
+    if(!args[0] || (new RegExp(`${prefix}(?:msg |message )`,'i')).test(args[0])){
       msg.channel.send(":x: Please specify the twitch channel.");
       return;
     }
@@ -606,5 +610,7 @@ function start(){
 }
 
 keepAlive();
+
+//client.on("debug", debugLogger.log);
 
 client.login();
