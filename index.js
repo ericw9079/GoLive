@@ -1,8 +1,8 @@
 const axios = require('axios');
-const keepAlive = require('./server');
-const Discord = require("discord.js");
-const client = new Discord.Client();
-const db = require("./database");
+const keepAlive = require('./server.js');
+const { Client, Intents } = require('discord.js');
+const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
+const db = require("./database.js");
 const discordManager = require("./discordManager");
 const help = require("./help");
 const logger = require("./logger.js");
@@ -34,6 +34,8 @@ var interval;
 var retryCount = 1;
 
 var cooldowns = new Set();
+
+//require("./deploy-commands.js");
 
 /*db.list().then(async (keys)=>{
   for(let key in keys){
@@ -574,6 +576,11 @@ client.on("error", (err) => {
 	clearInterval(interval);
 	client.destroy();
 	setTimeout(() => { client.login(); }, 6000);
+});
+
+client.on('interactionCreate', interaction => {
+	if (!interaction.isCommand()) return;
+	console.log(interaction);
 });
 
 client.on("message", (msg) => {

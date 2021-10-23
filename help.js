@@ -8,7 +8,12 @@ const helpEmbed = new MessageEmbed()
 		  {name:`${prefix}add <twitch channel> [discord channel]`,value:"Start receiving notifications when the channel goes live",inline:true},
 		  {name:`${prefix}remove <twitch channel>`,value:"Stop receiving notifications for the channel",inline:true},
 		  {name:`${prefix}message <twitch channel> [notification message]`,value:"Set or reset the notification message for the channel",inline:true},
-		  {name:`${prefix}list`,value:"List the channels the server is currently receiving notifications for",inline:true},{name:`${prefix}help [command]`,value:"Shows this help message",inline:true},{name:`${prefix}testmessage <twitch channel>`,value:"Sends the current message for the channel with mentions disabled",inline:true},{name:`${prefix}default [notification message]`,value:"Set or reset the default notification message for the server",inline:true},{name:`${prefix}availablelist`,value:"List the channels that can be added to the server.",inline:true}
+		  {name:`${prefix}list`,value:"List the channels the server is currently receiving notifications for",inline:true},
+      {name:`${prefix}help [command]`,value:"Shows this help message",inline:true},
+      {name:`${prefix}testmessage <twitch channel>`,value:"Sends the current message for the channel with mentions disabled",inline:true},
+      {name:`${prefix}default [notification message]`,value:"Set or reset the default notification message for the server",inline:true},
+      {name:`${prefix}availablelist`,value:"List the channels that can be added to the server.",inline:true},
+      {name:`${prefix}defaultchannel [discord channel]`,value:"Set or reset the default channel to use when adding channels if no channel is given",inline:true}
 	  )
 	  .setFooter("Don't add the <> or [] to the command");
 
