@@ -8,6 +8,7 @@ Check out the live channels at: https://GoLive.epicboy.repl.co
 * 5 min cooldown after a streamer goes offline before another message will be sent
 * Ability to set a default channel to use when adding streamers without specifing the channel
 * Ability to test the message for a streamer
+* Supports up to 700 twitch streamers across all servers (limit imposed by twitch)
 
 ## Usage
 Arguments wrapped in <> are required while arguments wrapped in [] are optional.
