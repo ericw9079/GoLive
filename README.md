@@ -73,3 +73,7 @@ or
 gl!alist
 ```
 will list all the streamers the bot is monitoring that the server is not receiving notifications for. This command will also tell you if the bot is able to support more streamers.
+
+# Credits
+Image created by Shupik123
+© 2021 ericw9079
