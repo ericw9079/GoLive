@@ -1,5 +1,5 @@
-# GoLive
 ![Uptime Robot status](https://img.shields.io/uptimerobot/status/m787508336-8d648545636207f0f17a2496) ![Uptime Robot ratio (7 days)](https://img.shields.io/uptimerobot/ratio/7/m787508336-8d648545636207f0f17a2496)
+# GoLive
 Reliable discord notifications when streamers go live on Twitch.
 Check out the live channels at: https://GoLive.epicboy.repl.co
 ## Features
