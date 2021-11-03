@@ -26,7 +26,6 @@ const CAN_SEND = 1;
 
 const DELAY = 60000; // Time between Twitch fetches, in milliseconds
 const COOLDOWN = 300000; // cooldown time between state changes (5 min)
-//const mentions = /<?@[&!]?(?:\d+>|here|everyone)/i // Regular expression for determing if there was an attempted ping
 
 var firstLogin = 0;
 var notifications = [];
@@ -108,6 +107,12 @@ async function getLive(){
     if(retryCount < 10){
       retryCount++;
     }
+  }
+  if(client.user.presence.status == "dnd" && retryCount == 1){
+    client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'online' });
+  }
+  else if(client.user.presence.status == "online" && retryCount > 1){
+    client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'dnd' });
   }
   interval = setTimeout(getLive,DELAY*retryCount);
 }
@@ -537,7 +542,7 @@ client.on("ready", () => {
 	if(firstLogin !== 1) {
 	  firstLogin = 1;
 	  logger.log("Discord client connected successfully.");
-    client.user.setActivity(`for live channels - ${prefix}help`,{ type: 'WATCHING' });
+    client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'online' });
     client.users.fetch(process.env.OWNER_ID).then((user) => {
       user.createDM().then((channel) => {
         logger.log("db logger connected");
