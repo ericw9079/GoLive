@@ -80,8 +80,13 @@ async function checkLive(channel){
   }
   let newStatus = resp.data.data[0].is_live?ONLINE:OFFLINE;
   if(oldStatus == OFFLINE && newStatus == ONLINE && !cooldowns.has(channel)){
-    logger.log("Sending Message");
-    sendMessage(channel,resp.data.data[0].game_name,resp.data.data[0].title,resp.data.data[0].display_name);
+    if(!/\[.*?test.*?]/gi.test(resp.data.data[0].title)){
+      logger.log("Sending Message");
+      sendMessage(channel,resp.data.data[0].game_name,resp.data.data[0].title,resp.data.data[0].display_name);
+    }
+    else{
+      logger.log("Skipping message: test flag set");
+    }
   }
   if(oldStatus != newStatus){
     logger.log(`${channel} status changed to: `+newStatus);
