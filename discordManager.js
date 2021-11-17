@@ -1,7 +1,9 @@
 var db = null;
+var cacheManager = null
 
-function init(database){
+function init(database,cache){
   db = database;
+  cacheManager = cache;
 }
 
 async function addChannel(twitch,guild,channel){
@@ -43,6 +45,7 @@ async function removeChannel(twitch,discord){
   else{
     await db.delete("Discord:"+twitch);
     await db.delete("Live:"+twitch);
+    await cacheManager.remove(twitch);
   }
   return true;
 }

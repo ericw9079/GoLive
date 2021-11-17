@@ -3,6 +3,7 @@ const path = require('path');
 const server = express();
 const logger = require('./logger.js');
 const db = require('./database.js');
+const cache = require('./cacheManager.js');
 
 const OFFLINE = "OFFLINE";
 const ONLINE = "ONLINE";
@@ -23,11 +24,12 @@ server.all('/live', async (req, res) =>{
   let offline = "";
   for(let key in keys){
     let status = await db.get(keys[key]);
+    let name = await cache.name(keys[key].substr(5));
     if(status == ONLINE){
-      online += `<a rel='external' target='_blank' href='https://twitch.tv/${keys[key].substr(5)}'>${keys[key].substr(5)}</a><br />`;
+      online += `<a rel='external' target='_blank' href='https://twitch.tv/${name}'>${name}</a><br />`;
     }
     else{
-      offline += `${keys[key].substr(5)}<br />`;
+      offline += `${name}<br />`;
     }
   }
   s = "<table style='width:100%'>";

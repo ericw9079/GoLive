@@ -3,12 +3,14 @@ const keepAlive = require('./server.js');
 const { Client, Intents } = require('discord.js');
 const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
 const db = require("./database.js");
-const discordManager = require("./discordManager");
+const discordManager = require("./discordManager.js");
+const cacheManager = require("./cacheManager.js");
 const help = require("./help");
 const logger = require("./logger.js");
 const debugLogger = require("./debugLogger.js");
 
-discordManager.init(db);
+cacheManager.init(db);
+discordManager.init(db,cacheManager);
 
 const clientId = process.env.TWITCH_ID;
 const clientSecret = process.env.TWITCH_SECRET;
@@ -60,43 +62,60 @@ async function getToken(){
 	logger.log("Fetched new Access Token");
 }
 
-async function checkLive(channel){
+async function lookupChannel(channelName){
+  try{
+		let res = await axios.head('https://id.twitch.tv/oauth2/validate');
+	}
+	catch(error){
+		await getToken();
+	}
+  let resp = await axios.get(`https://api.twitch.tv/helix/search/channels?query=${channelName}&first=1`);
+  if(resp.data.data[0] && resp.data.data[0].broadcaster_login == channelName.toLowerCase()){
+    let bl = await db.get("bl",[]);
+    if(bl.includes(resp.data.data[0].id)){
+      throw new Error("Bl");
+    }
+    return resp.data.data[0];
+  }
+  return false;
+}
+
+async function checkLive(uid){
+  let name = await cacheManager.name(uid);
 	try{
 		let res = await axios.head('https://id.twitch.tv/oauth2/validate');
 	}
 	catch(error){
 		await getToken();
 	}
-	let resp = await axios.get(`https://api.twitch.tv/helix/search/channels?query=${channel}&first=1`);
-  let oldStatus = await db.get(`Live:${channel}`,OFFLINE);
+	let resp = await axios.get(`https://api.twitch.tv/helix/streams?user_id=${uid}&first=1`);
+  let oldStatus = await db.get(`Live:${uid}`,OFFLINE);
   if(oldStatus == null || oldStatus == ""){
     oldStatus = OFFLINE;
   }
   if(!resp.data.data[0]){
-    resp.data.data[0] = {is_live:false};
+    resp.data.data[0] = {type:""};
   }
-  if(resp.data.data[0].broadcaster_login !== channel){
-    return;
-  }
-  let newStatus = resp.data.data[0].is_live?ONLINE:OFFLINE;
-  if(oldStatus == OFFLINE && newStatus == ONLINE && !cooldowns.has(channel)){
+  let newStatus = resp.data.data[0].type=="live"?ONLINE:OFFLINE;
+  if(oldStatus == OFFLINE && newStatus == ONLINE && !cooldowns.has(name)){
+    await cacheManager.update(uid,resp.data.data[0].user_login);
     if(!/\[.*?test.*?]/gi.test(resp.data.data[0].title)){
       logger.log("Sending Message");
-      sendMessage(channel,resp.data.data[0].game_name,resp.data.data[0].title,resp.data.data[0].display_name);
+      sendMessage(uid,resp.data.data[0].game_name,resp.data.data[0].title,resp.data.data[0].user_name);
     }
     else{
       logger.log("Skipping message: test flag set");
     }
   }
   if(oldStatus != newStatus){
-    logger.log(`${channel} status changed to: `+newStatus);
-    cooldowns.add(channel);
+    logger.log(`${name} status changed to: `+newStatus);
+    cooldowns.add(name);
     setTimeout((c) => {
       cooldowns.delete(c);
       logger.log(`${c} status change acknowledged`);
-    }, COOLDOWN,channel);
+    }, COOLDOWN,name);
   }
-  await db.set(`Live:${channel}`,newStatus);
+  await db.set(`Live:${uid}`,newStatus);
 }
 
 async function getLive(){
@@ -122,8 +141,9 @@ async function getLive(){
   interval = setTimeout(getLive,DELAY*retryCount);
 }
 
-async function sendMessage(channel,game,title,name){
-  let channels = await db.get(`Discord:${channel}`);
+async function sendMessage(uid,game,title,name){
+  let channel = await cacheManager.name(uid);
+  let channels = await db.get(`Discord:${uid}`);
   for(let guildId in channels){
     try{
       let guild = await client.guilds.fetch(guildId.replace("id",""));
@@ -132,7 +152,7 @@ async function sendMessage(channel,game,title,name){
         if(discordChannel){
           discordChannel = guild.channels.resolve(discordChannel);
           if(discordChannel && discordChannel.isText()){
-            let message = await discordManager.getMessage(channel,guildId.replace("id",""));
+            let message = await discordManager.getMessage(uid,guildId.replace("id",""));
             if(!message){
               message = "{channel} went LIVE with {game}! Check them out at {url}";
             }
@@ -155,12 +175,12 @@ async function sendMessage(channel,game,title,name){
 
 async function testMessage(twitchChannel,channel){
   if(channel && channel.isText()){
-    let message = await discordManager.getMessage(twitchChannel,channel.guild.id);
+    let message = await discordManager.getMessage(await cacheManager.uid(twitchChannel),channel.guild.id);
     if(!message){
       message = "{channel} went LIVE with {game}! Check them out at {url}";
     }
     message = message.replace("{url}",`https://twitch.tv/${twitchChannel}`).replace("{game}","Test Game").replace("{channel}",twitchChannel).replace("{title}","Test Message").replace("{everyone}","@everyone");
-    let postChannel = await discordManager.getChannel(twitchChannel,channel.guild.id);
+    let postChannel = await discordManager.getChannel(await cacheManager.uid(twitchChannel),channel.guild.id);
     let perm = checkPerms(postChannel,channel.guild);
     let permResult = "";
     if(perm === CAN_SEND){
@@ -226,46 +246,56 @@ function parseDiscordCommand(msg) {
         return;
     }
     var id = args[1].replace("<#","").replace(">","");
-
-    db.get("DefaultChannel:"+msg.guild.id).then((defaultChannelId) => {
-      defaultChannelId = defaultChannelId.replace("id","");
-      let channelobj = null;
-      if(id) {
-        channelobj = msg.guild.channels.resolve(id);
+    lookupChannel(args[0]).then((resp) => {
+      if(resp === false){
+        msg.channel.send(":x: Could not resolve twitch channel.");
+        return;
       }
-      if(channelobj === null && defaultChannelId){
-        channelobj = msg.guild.channels.resolve(defaultChannelId);
-        if(channelobj === null){
-          msg.channel.send(":warning: The default channel does not exist");
+      let uid = resp.id;
+      db.get("DefaultChannel:"+msg.guild.id).then((defaultChannelId) => {
+        defaultChannelId = defaultChannelId.replace("id","");
+        let channelobj = null;
+        if(id) {
+          channelobj = msg.guild.channels.resolve(id);
         }
-      }
-      if(channelobj === null) {
-        channelobj = msg.channel;
-      }
-
-      if(channelobj !== undefined && channelobj !== null && channelobj.isText()) {
-        let channelid = channelobj.id;
-        let perm = checkPerms(channelid,channelobj.guild)
-        if(perm !== CANT_SEND){
-          discordManager.addChannel(args[0].toLowerCase(),msg.guild.id,channelid).then((result)=>{
-            if(result && perm == CAN_SEND){
-              msg.channel.send(`:white_check_mark: Notifications will be sent to <#${channelid}> when ${args[0].toLowerCase()} goes live`);
-            }
-            else if(result && perm == CANT_EMBED){
-              msg.channel.send(`:warning: Notifications will be sent to <#${channelid}> when ${args[0].toLowerCase()} goes live but links won't be embeded`);
-            }
-            else{
-              msg.channel.send(`:x: Not enough space to add ${args[0].toLowerCase()}, use ${prefix}availablelist to list the channels that can be added.`);
-            }
-          });
-        }
-        else{
-            msg.channel.send(`:x: Please ensure <@${client.user.id}> has permission to send messages in <#${channelid}>. The channel was not added.`);
+        if(channelobj === null && defaultChannelId){
+          channelobj = msg.guild.channels.resolve(defaultChannelId);
+          if(channelobj === null){
+            msg.channel.send(":warning: The default channel does not exist");
           }
-      }
-      else {
-        msg.channel.send(":x: Failed to identify the channel you specified.");
-      }
+        }
+        if(channelobj === null) {
+          channelobj = msg.channel;
+        }
+
+        if(channelobj !== undefined && channelobj !== null && channelobj.isText()) {
+          let channelid = channelobj.id;
+          let perm = checkPerms(channelid,channelobj.guild)
+          if(perm !== CANT_SEND){
+            discordManager.addChannel(uid,msg.guild.id,channelid).then((result)=>{
+              if(result && perm == CAN_SEND){
+                msg.channel.send(`:white_check_mark: Notifications will be sent to <#${channelid}> when ${args[0].toLowerCase()} goes live`);
+                cacheManager.update(uid,args[0]);
+              }
+              else if(result && perm == CANT_EMBED){
+                msg.channel.send(`:warning: Notifications will be sent to <#${channelid}> when ${args[0].toLowerCase()} goes live but links won't be embeded`);
+                cacheManager.update(uid,args[0]);
+              }
+              else{
+                msg.channel.send(`:x: Not enough space to add ${args[0].toLowerCase()}, use ${prefix}availablelist to list the channels that can be added.`);
+              }
+            });
+          }
+          else{
+              msg.channel.send(`:x: Please ensure <@${client.user.id}> has permission to send messages in <#${channelid}>. The channel was not added.`);
+            }
+        }
+        else {
+          msg.channel.send(":x: Failed to identify the channel you specified.");
+        }
+      });
+    }).catch((e) => {
+      msg.channel.send(":x: An Error occured while adding the channel.");
     });
   }
   else if(cmd.startsWith("REMOVE")) {
@@ -274,13 +304,19 @@ function parseDiscordCommand(msg) {
       msg.channel.send(":x: The channel entered is invalid");
         return;
     }
-    discordManager.removeAll(str.toLowerCase(),msg.guild.id).then((result) => {
-      if(result){
-        msg.channel.send(`:white_check_mark: Notifications will no longer be posted when ${str.toLowerCase()} goes live`);
+    cacheManager.uid(str.toLowerCase()).then((uid) => {
+      if(uid == null){
+        msg.channel.send(`:white_check_mark: Notifications were not being posted when ${str.toLowerCase()} goes live`);
+        return;
       }
-      else{
-          msg.channel.send(":x: Could not remove Channel");
-      }
+      discordManager.removeAll(uid,msg.guild.id).then((result) => {
+        if(result){
+          msg.channel.send(`:white_check_mark: Notifications will no longer be posted when ${str.toLowerCase()} goes live`);
+        }
+        else{
+            msg.channel.send(":x: Could not remove Channel");
+        }
+      });
     });
   }
   else if(cmd.startsWith("MSG") || cmd.startsWith("MESSAGE")){
@@ -294,39 +330,41 @@ function parseDiscordCommand(msg) {
       msg.channel.send(":x: The channel entered is invalid");
         return;
     }
-    discordManager.getChannel(args[0].toLowerCase(),msg.guild.id).then(channel => {
-      if(channel === undefined){
-        msg.channel.send(":x: This Channel is not linked with this server. The message was not changed.");
-        return;
-      }
-      let message = msg.content.replace(new RegExp(`${prefix}(?:msg|message) [a-z_0-9]{4,25} ?`,'i'),"");
-      if(message){
-        discordManager.addMessage(args[0].toLowerCase(),msg.guild.id,message.trim()).then((result)=>{
-          if(result){
-            msg.channel.send(`:white_check_mark: Notifications for ${args[0].toLowerCase()} will now read '${message}'`);
-          }
-          else{
-            msg.channel.send(":x: Could not add message");
-          }
-        });
-      }
-      else{
-        discordManager.removeMessage(args[0].toLowerCase(),msg.guild.id,message.trim()).then((result)=>{
-          if(result){
-            discordManager.getMessage(str.toLowerCase(),msg.guild.id).then((message)=>{
-              if(message){
-                msg.channel.send(`:white_check_mark: Notification Message Reset to server default for ${str.toLowerCase()}`);
-              }
-              else{
-                msg.channel.send(`:white_check_mark: Notification Message Reset for ${str.toLowerCase()}`);
-              }
-            });
-          }
-          else{
-            msg.channel.send(":x: Could not remove message");
-          }
-        });
-      }
+    cacheManager.uid(args[0].toLowerCase()).then((uid) => {
+      discordManager.getChannel(uid,msg.guild.id).then(channel => {
+        if(channel === undefined){
+          msg.channel.send(":x: This Channel is not linked with this server. The message was not changed.");
+          return;
+        }
+        let message = msg.content.replace(new RegExp(`${prefix}(?:msg|message) [a-z_0-9]{4,25} ?`,'i'),"");
+        if(message){
+          discordManager.addMessage(uid,msg.guild.id,message.trim()).then((result)=>{
+            if(result){
+              msg.channel.send(`:white_check_mark: Notifications for ${args[0].toLowerCase()} will now read '${message}'`);
+            }
+            else{
+              msg.channel.send(":x: Could not add message");
+            }
+          });
+        }
+        else{
+          discordManager.removeMessage(uid,msg.guild.id,message.trim()).then((result)=>{
+            if(result){
+              discordManager.getMessage(uid,msg.guild.id).then((message)=>{
+                if(message){
+                  msg.channel.send(`:white_check_mark: Notification Message Reset to server default for ${args[0].toLowerCase()}`);
+                }
+                else{
+                  msg.channel.send(`:white_check_mark: Notification Message Reset for ${args[0].toLowerCase()}`);
+                }
+              });
+            }
+            else{
+              msg.channel.send(":x: Could not remove message");
+            }
+          });
+        }
+      });
     });
   }
   else if(cmd.startsWith("DEFAULTCHANNEL")){
@@ -395,12 +433,13 @@ function parseDiscordCommand(msg) {
       for(key of keys){
         let channel = await discordManager.getChannel(key.replace("Discord:",""),guildId);
         if(channel !== undefined){
+          let name = await cacheManager.name(key.replace("Discord:",""));
           let msg = await discordManager.getMessage(key.replace("Discord:",""),guildId,false);
           if(msg){
-            s += `${key.replace("Discord:","")} (in <#${channel}> with custom message)\n`;
+            s += `${name} (in <#${channel}> with custom message)\n`;
           }
           else{
-            s += `${key.replace("Discord:","")} (in <#${channel}>)\n`;
+            s += `${name} (in <#${channel}>)\n`;
           }
         }
       }
@@ -431,12 +470,14 @@ function parseDiscordCommand(msg) {
       msg.channel.send(":x: The channel entered is invalid");
         return;
     }
-    discordManager.getChannel(args[0].toLowerCase(),msg.guild.id).then(channel => {
-      if(channel === undefined){
-        msg.channel.send(":x: This Channel is not linked with this server.");
-        return;
-      }
-      testMessage(args[0].toLowerCase(),msg.channel);
+    cacheManager.uid(args[0].toLowerCase()).then((uid) => {
+      discordManager.getChannel(uid,msg.guild.id).then(channel => {
+        if(channel === undefined){
+          msg.channel.send(":x: This Channel is not linked with this server.");
+          return;
+        }
+        testMessage(args[0].toLowerCase(),msg.channel);
+      });
     });
   }
   else if(cmd.startsWith("AVAILABLELIST") || cmd.startsWith("ALIST") || cmd.startsWith("AL")){
@@ -446,13 +487,14 @@ function parseDiscordCommand(msg) {
       let keys = await db.list("Discord:")
       for(key of keys){
         let channel = await discordManager.getChannel(key.replace("Discord:",""),guildId);
+        let name = await cacheManager.name(key.replace("Discord:",""));
         if(channel === undefined){
-          s += `> ${key.replace("Discord:","")}\n`;
+          s += `> ${name}\n`;
         }
       }
       if(!s){
         s = "This server is receiving notifications for all the channels GoLive is monitoring";
-        if(keys.length < 300){
+        if(keys.length < 700){
           s += " and there is space for more.";
         }
         else{
@@ -547,7 +589,8 @@ client.on("ready", () => {
 	if(firstLogin !== 1) {
 	  firstLogin = 1;
 	  logger.log("Discord client connected successfully.");
-    client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'online' });
+    //client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'online' });
+    client.user.setPresence({ activity: { name: `down for maintenance - ${prefix}help`, type: 'PLAYING'}, status: 'idle' });
     client.users.fetch(process.env.OWNER_ID).then((user) => {
       user.createDM().then((channel) => {
         logger.log("db logger connected");
