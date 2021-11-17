@@ -589,8 +589,7 @@ client.on("ready", () => {
 	if(firstLogin !== 1) {
 	  firstLogin = 1;
 	  logger.log("Discord client connected successfully.");
-    //client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'online' });
-    client.user.setPresence({ activity: { name: `down for maintenance - ${prefix}help`, type: 'PLAYING'}, status: 'idle' });
+    client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'online' });
     client.users.fetch(process.env.OWNER_ID).then((user) => {
       user.createDM().then((channel) => {
         logger.log("db logger connected");
