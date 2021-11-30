@@ -336,6 +336,10 @@ function parseDiscordCommand(msg) {
           msg.channel.send(":x: This Channel is not linked with this server. The message was not changed.");
           return;
         }
+        if(uid == process.env.OWNER_CHANNEL && msg.author.id !== process.env.OWNER_ID){
+          msg.channel.send(":x: Only the bot owner can change the message for this channel");
+          return;
+        }
         let message = msg.content.replace(new RegExp(`${prefix}(?:msg|message) [a-z_0-9]{4,25} ?`,'i'),"");
         if(message){
           discordManager.addMessage(uid,msg.guild.id,message.trim()).then((result)=>{
