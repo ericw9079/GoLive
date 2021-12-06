@@ -5,7 +5,7 @@ Check out the live channels at: https://GoLive.epicboy.repl.co
 ## Features
 * Ability to set custom messages per streamer
 * Ability to set a custom server default message to use unless another message is set for the streamer
-* Global default message used if no custom message set
+* Global server default message used if no custom message set
 * 5 min cooldown after a streamer goes offline before another message will be sent
 * Ability to set a default channel to use when adding streamers without specifing the channel
 * Ability to test the message for a streamer
@@ -74,6 +74,10 @@ or
 gl!alist
 ```
 will list all the streamers the bot is monitoring that the server is not receiving notifications for. This command will also tell you if the bot is able to support more streamers.
+
+# How to host
+Please don't
+if you'd like to use the bot please contact me.
 
 # Credits
 Image created by Shupik123  
