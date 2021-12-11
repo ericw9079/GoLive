@@ -586,6 +586,32 @@ function processOwnerCommands(msg){
     msg.channel.send(`https://discord.com/api/oauth2/authorize?client_id=${botId}&permissions=${botPerms}&scope=${botScopes}`);
     return true;
   }
+  else if(cmd.startsWith("GUILDS")){
+    if (msg.channel.type !== "dm"){
+      if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+        // We can't send in this channel
+        if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+          // But we can react so indicate the error
+          msg.react('⚠️');
+        }
+      }
+      else{
+        msg.channel.send(":x: This command must be used in a dm");
+      }
+      return true; // Command handled do not run main handler
+    }
+    let s = ""
+    for (const entry of client.guilds.cache) {
+      s += entry[1].name + "\n"
+    }
+    if(s){
+      msg.channel.send("Bot is in:\n"+s);
+    }
+    else{
+      msg.channel.send("Bot is not in any guilds");
+    }
+    return true;
+  }
   return false; // Command not handled revert to main handler
 }
 
@@ -676,4 +702,5 @@ keepAlive();
 
 //client.on("debug", debugLogger.log);
 
+logger.log("Attempting Login");
 client.login();
