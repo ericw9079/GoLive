@@ -18,6 +18,7 @@ const prefix = process.env.DISCORD_PREFIX;
 const botId = process.env.DISCORD_CLIENT;
 const botPerms = process.env.DISCORD_PERMS;
 const botScopes = process.env.DISCORD_SCOPES;
+const logChannel = process.env.DISCORD_LOG; // Discord log channel
 
 const OFFLINE = "OFFLINE";
 const ONLINE = "ONLINE";
@@ -33,8 +34,8 @@ var firstLogin = 0;
 var notifications = [];
 var interval;
 var retryCount = 1;
-
 var cooldowns = new Set();
+var errMsg = "";
 
 //require("./deploy-commands.js");
 
@@ -59,7 +60,6 @@ function checkPerms(channel,guild){
 async function getToken(){
 	let res = await axios.post(`https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`);
 	axios.defaults.headers.common['Authorization'] = "Bearer "+res.data.access_token;
-	logger.log("Fetched new Access Token");
 }
 
 async function lookupChannel(channelName){
@@ -100,7 +100,6 @@ async function checkLive(uid){
   if(oldStatus == OFFLINE && newStatus == ONLINE && !cooldowns.has(name)){
     await cacheManager.update(uid,resp.data.data[0].user_login);
     if(!/\[.*?test.*?]/gi.test(resp.data.data[0].title)){
-      logger.log("Sending Message");
       sendMessage(uid,resp.data.data[0].game_name,resp.data.data[0].title,resp.data.data[0].user_name);
     }
     else{
@@ -112,7 +111,6 @@ async function checkLive(uid){
     cooldowns.add(name);
     setTimeout((c) => {
       cooldowns.delete(c);
-      logger.log(`${c} status change acknowledged`);
     }, COOLDOWN,name);
   }
   await db.set(`Live:${uid}`,newStatus);
@@ -549,13 +547,14 @@ function processOwnerCommands(msg){
           }
           catch{
             // The guild is unavailable remove it.
+              let channelName = await cache.name(channel);
               let result = await discordManager.removeAll(channel,guildId);
               if(result){
                 await db.delete("DefaultChannel:"+guildId);
-                s += `Purged ${channel} => ${guildId}\n`;
+                s += `Purged ${channelName} => ${guildId}\n`;
               }
               else{
-                s += `Could not Purge ${channel} => ${guildId}\n`;
+                s += `Could not Purge ${channelName} => ${guildId}\n`;
               }
           }
         }
@@ -622,7 +621,6 @@ client.on("ready", () => {
     client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'online' });
     client.users.fetch(process.env.OWNER_ID).then((user) => {
       user.createDM().then((channel) => {
-        logger.log("db logger connected");
         db.setLogger(channel);
       }).catch((e)=>{logger.error(e)});
     }).catch((e)=>{logger.error(e)});
@@ -635,11 +633,37 @@ client.on("ready", () => {
 	  getLive();
 	}
 
+  if(errMsg != "") {
+    client.users.fetch(process.env.OWNER_ID).then((user) => {
+      user.createDM().then((channel) => {
+        channel.send(`**ERROR:** ${errMsg}`);
+        errMsg = "";
+      }).catch((e)=>{logger.error(e)});
+    }).catch((e)=>{logger.error(e)});
+  }
+
+});
+
+client.once("ready", async () => {
+	const channel = client.channels.cache.get(logChannel);
+	try {
+		const webhooks = await channel.fetchWebhooks();
+		let webhook = webhooks.find(wh => wh.token);
+		if(!webhook) {
+			webhook = await channel.createWebhook("GoLive Logging", {reason: "GoLive logging"});
+		}
+		logger.init(webhook);
+	}
+	catch (error) {
+		logger.error("Error trying to configure discord logger");
+		console.log(error);
+	}
 });
 
 client.on("disconnect", (event) => {
 	if(event.code !== 1000) {
 	  logger.log("Discord client disconnected with reason: " + event.reason + " (" + event.code + ").");
+    errMsg = "Discord client disconnected with reason: " + event.reason + " (" + event.code + ").";
 
 	  if(event.code === 4004) {
 		  logger.log("Please double-check the configured token and try again.");
@@ -655,6 +679,7 @@ client.on("disconnect", (event) => {
 
 client.on("error", (err) => {
 	logger.log(`Discord client error '${err.code}' (${err.message}). Attempting to reconnect in 6s...`);
+  errMsg = `Discord client error '${err.code}' (${err.message}).`;
 	clearInterval(interval);
 	client.destroy();
 	setTimeout(() => { client.login(); }, 6000);
@@ -683,13 +708,32 @@ client.on("message", (msg) => {
 	}
   else{
     if (msg.channel.type === 'news' && notifications.includes(msg.channel.id)) {
-      msg.crosspost().then(() => logger.log('Crossposted message')).catch(logger.error);
+      msg.crosspost();
       notifications.splice(notifications.indexOf(msg.channel.id), 1);
     }
   }
 });
 
+client.on("guildCreate", (guild) => {
+	client.users.fetch(process.env.OWNER_ID).then((user) => {
+      user.createDM().then((channel) => {
+		channel.send(`Joined ${guild.name}`);
+      }).catch((e)=>{logger.error(e)});
+    }).catch((e)=>{logger.error(e)});
+  logger.log(`Joined ${guild.name}`);
+});
+
+client.on("guildDelete", (guild) => {
+	client.users.fetch(process.env.OWNER_ID).then((user) => {
+      user.createDM().then((channel) => {
+		channel.send(`Left ${guild.name}`);
+      }).catch((e)=>{logger.error(e)});
+    }).catch((e)=>{logger.error(e)});
+  logger.log(`Left ${guild.name}`);
+});
+
 process.on("exit",  () => {
+  logger.log("Shutting down");
 	client.destroy();
 });
 
@@ -702,5 +746,5 @@ keepAlive();
 
 //client.on("debug", debugLogger.log);
 
-logger.log("Attempting Login");
+logger.log("Attempting Discord Login");
 client.login();
