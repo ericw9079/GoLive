@@ -2,7 +2,7 @@
 ![Uptime Robot status](https://img.shields.io/uptimerobot/status/m787508336-8d648545636207f0f17a2496) ![Uptime Robot ratio (7 days)](https://img.shields.io/uptimerobot/ratio/7/m787508336-8d648545636207f0f17a2496) ![Website](https://img.shields.io/website?down_message=offline&style=plastic&up_message=online&url=https%3A%2F%2FGoLive.epicboy.repl.co)  
 Reliable discord notifications when streamers go live on Twitch.  
 Check out the live channels at: https://GoLive.epicboy.repl.co  
-© 2021 ericw9079
+© 2022 ericw9079
 ## Features
 * Ability to set custom messages per streamer
 * Ability to set a custom server default message to use unless another message is set for the streamer
@@ -82,4 +82,4 @@ if you'd like to use the bot please contact me.
 
 # Credits
 Image created by Shupik123  
-© 2021 ericw9079
+© 2022 ericw9079
