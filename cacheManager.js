@@ -1,59 +1,29 @@
-var db = null;
-
-function init(database){
-  db = database;
-}
+const db = require('./sqlDatabase.js');
 
 async function updateEntry(uid,name){
-  let value = await db.get("cache",{});
+  let value = await db.get("cache");
   if(value === null){
     value = {};
   }
-  if(!uid.startsWith('id')){
-    uid = 'id'+uid;
-  }
-  if(value[uid] != name.toLowerCase()){
-    value[uid] = name.toLowerCase();
-    await db.set("cache",value);
+  if(value["id"+uid] != name.toLowerCase()){
+    await db.setCache(uid,name.toLowerCase());
   }
 }
 
 async function removeEntry(uid){
-  let value = await db.get("cache",{});
-  if(value === null){
-    value = {};
-  }
-  if(!uid.startsWith('id')){
-    uid = 'id'+uid;
-  }
-  delete value[uid];
-  if(value && Object.keys(value).length !== 0){
-    await db.set("cache",value);
-  }
-  else{
-    await db.delete("cache");
-  }
+  await db.removeCache(uid);
 }
 
 async function getName(uid){
-  if(db == null){
-    return false;
-  }
-  let value = await db.get("cache",{});
-  if(value === null){
-    value = {};
-  }
-  if(!uid.startsWith('id')){
+  let value = await db.get("cache");
+  if(!`${uid}`.startsWith('id')){
     uid = 'id'+uid;
   }
   return value[uid];
 }
 
 async function getUID(name){
-  let value = await db.get("cache", {});
-  if(value === null){
-    value = {};
-  }
+  let value = await db.get("cache");
   let uid = null;
 	name = name.toLowerCase();
 	Object.keys(value).forEach(function (key) {
@@ -65,7 +35,6 @@ async function getUID(name){
 }
 
 module.exports = {
-  init:init,
   update:updateEntry,
   remove:removeEntry,
   name:getName,

@@ -28,25 +28,63 @@ function setLogger(logChannel){
 // BEGIN DISCORD
 
 function getDiscord(uid) {
-	return new Promise((resolve,reject) => {
-		pool.getConnection(function(err, con) {
-			if (err) return reject(err);
-			con.query(`SELECT * FROM Discord WHERE type="all" OR (type="normal" AND uid=${uid})`, function (err, includeResults) {
+	if(uid == "*") {
+		// Wildcard (type="all")
+		return new Promise((resolve,reject) => {
+			pool.query(`SELECT * FROM Discord WHERE type="all"`, function (err, allResults) {
 				if (err) {
-					con.release();
 					return reject(err);
 				}
-				con.query(`SELECT guild FROM Discord WHERE uid=${uid} AND type="ignore"`, function (err, excludeResults) {
-					con.release();
-					if (err) return reject(err);
-					result = includeResults.filter((el) => {
-						return !excludeResults.some(e => e.guild == el.guild);
+				resolve(allResults);
+			});
+		});
+	}
+	else if(typeof uid == "string" && uid.startsWith("^")) {
+		// Ignored channel
+		uid = uid.substr(1);
+		return new Promise((resolve,reject) => {
+			pool.query(`SELECT * FROM Discord WHERE uid=${uid} AND type="ignore"`, function (err, ignoredResults) {
+				if (err) {
+					return reject(err);
+				}
+				resolve(ignoredResults);
+			});
+		});
+	}
+	else {
+		return new Promise((resolve,reject) => {
+			pool.getConnection(function(err, con) {
+				if (err) return reject(err);
+				con.query(`SELECT * FROM Discord WHERE type="normal" AND uid=${uid}`, function (err, includeResults) {
+					if (err) {
+						con.release();
+						return reject(err);
+					}
+					con.query(`SELECT * FROM Discord WHERE type="all"`, function (err, allResults) {
+						if (err) {
+							con.release();
+							return reject(err);
+						}
+						allResults.forEach((el) => {
+							if(!includeResults.some(e => e.guild === el.guild)){
+								// Merge the results
+								includeResults.push(el);
+							}
+						});
+						con.query(`SELECT guild FROM Discord WHERE uid=${uid} AND type="ignore"`, function (err, excludeResults) {
+							con.release();
+							if (err) return reject(err);
+							result = includeResults.filter((el) => {
+								// Exclude the ignore channels
+								return !excludeResults.some(e => e.guild == el.guild);
+							});
+							resolve(result);
+						});
 					});
-					resolve(result);
 				});
 			});
 		});
-	});
+	}
 }
 
 function addDiscord(uid, guild, channel) {
@@ -146,14 +184,14 @@ function removeWildDiscord(guild) {
 	return new Promise((resolve,reject) => {
 		pool.query(`DELETE FROM Discord WHERE uid IS NULL AND guild=${guild} AND type="all"`, function (err, result) {
 			if (err) return reject(err);
-			resolve(result);
+			resolve(result.affectedRows > 0);
 		});
 	});
 }
 
 function listDiscords() {
 	return new Promise((resolve,reject) => {
-		pool.query(`SELECT uid FROM Discord`, function (err, result) {
+		pool.query(`SELECT uid,type FROM Discord`, function (err, result) {
 			if (err) return reject(err);
 			resolve(result);
 		});
@@ -277,14 +315,14 @@ function addDefaultChannel(guild, channel) {
 					return reject(err);
 				}
 				if(!keys || keys.length == 0) {
-					con.query(`INSERT INTO DefaultChannel (guild,channel) VALUES (${guild},"${channel}")`, function (err, results) {
+					con.query(`INSERT INTO DefaultChannel (guild,channel) VALUES (${guild},${channel})`, function (err, results) {
 						con.release();
 						if (err) return reject(err);
 						resolve(true);
 					});
 				}
 				else {
-					con.query(`UPDATE DefaultChannel SET guild=${guild},channel="${channel}" WHERE guild=${keys[0].guild}`, function (err, results) {
+					con.query(`UPDATE DefaultChannel SET guild=${guild},channel=${channel} WHERE guild=${keys[0].guild}`, function (err, results) {
 						con.release();
 						if (err) return reject(err);
 						resolve(true);
@@ -466,11 +504,22 @@ function getBL() {
 async function get(key) {
 	[ table, id ] = key.split(":");
 	let keys;
+	let res;
 	switch(table) {
 		case "Discord":
-			return await getDiscord(id);
+			res = {};
+			keys = await getDiscord(id);
+			keys.forEach((element, index) => {
+				res[`id${element.guild}`] = element.channel;
+			});
+			return res;
 		case "Message":
-			return await getMessage(id);
+			res = {};
+			keys = await getMessage(id);
+			keys.forEach((element, index) => {
+				res[`id${element.guild}`] = element.message;
+			});
+			return res;
 		case "Default":
 			let msg = await getDefaultMessage(id);
 			return msg.length > 0 ? msg[0].message:"";
@@ -478,9 +527,10 @@ async function get(key) {
 			let state = await getLive(id);
 			return state.length > 0 ? state[0].status:"OFFLINE";
 		case "DefaultChannel":
-			return await getDefaultChannel(id);
+			let channel = await getDefaultChannel(id);
+			return channel.length > 0 ? channel[0].channel:0;
 		case "cache":
-			let res = {};
+			res = {};
 			keys = await getCache();
 			keys.forEach((element, index) => {
 				res[`id${element.uid}`] = element.username;
@@ -514,9 +564,17 @@ async function list(prefix=undefined){
 		case "Discord":
 			keys = await listDiscords();
 			keys.forEach((element, index) => {
-				keys[index] = element.uid;
+				switch(element.type) {
+					case "normal":
+						keys[index] = element.uid;
+						break;
+					case "all":
+						keys[index] = "*";
+						break;
+					case "ignore":
+						keys[index] = "^"+element.uid;
+				}
 			});
-			console.log(keys);
 			break;
 	  }
     }
