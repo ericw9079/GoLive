@@ -1,17 +1,50 @@
-const db = require('./sqlDatabase.js');
+let db = require('./sqlDatabase.js');
+if(process.env.Environment == "Replit"){
+  console.log("Using Replit db");
+  db = require('./database.js');
+}
 
 async function updateEntry(uid,name){
-  let value = await db.get("cache");
+  let value = await db.get("cache",{});
   if(value === null){
     value = {};
   }
-  if(value["id"+uid] != name.toLowerCase()){
-    await db.setCache(uid,name.toLowerCase());
+  if(process.env.Environment == "Replit"){
+    if(!uid.startsWith('id')){
+      uid = 'id'+uid;
+    }
+    if(value[uid] != name.toLowerCase()){
+      value[uid] = name.toLowerCase();
+      await db.set("cache",value);
+    }
+  }
+  else{
+    if(value["id"+uid] != name.toLowerCase()){
+      await db.setCache(uid,name.toLowerCase());
+    }
   }
 }
 
 async function removeEntry(uid){
-  await db.removeCache(uid);
+  if(process.env.Environment == "Replit"){
+    let value = await db.get("cache",{});
+    if(value === null){
+      value = {};
+    }
+    if(!uid.startsWith('id')){
+      uid = 'id'+uid;
+    }
+    delete value[uid];
+    if(value && Object.keys(value).length !== 0){
+      await db.set("cache",value);
+    }
+    else{
+      await db.delete("cache");
+    }
+  }
+  else {
+    await db.removeCache(uid);
+  }
 }
 
 async function getName(uid){

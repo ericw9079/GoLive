@@ -16,7 +16,6 @@ async function addChannel(twitch,guild,channel){
 async function removeChannel(twitch,discord){
 	await db.removeDiscord(twitch,`${discord}`);
 	let value = await db.get("Discord:"+twitch);
-	console.log(value);
 	if(Object.entries(value).length == 0){
 		await db.removeLive(`${twitch}`);
 		await cacheManager.remove(twitch);

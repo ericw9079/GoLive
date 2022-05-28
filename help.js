@@ -15,7 +15,7 @@ const helpEmbed = new MessageEmbed()
       {name:`${prefix}availablelist`,value:"List the channels that can be added to the server.",inline:true},
       {name:`${prefix}defaultchannel [discord channel]`,value:"Set or reset the default channel to use when adding channels if no channel is given",inline:true}
 	  )
-	  .setFooter("Don't add the <> or [] to the command");
+	  .setFooter({text:"Don't add the <> or [] to the command"});
 
 const msgEmbed = new MessageEmbed()
     .setColor([214,25,25])

@@ -1,6 +1,7 @@
+require('dotenv').config();
 const axios = require('axios');
 const { Client, Intents } = require('discord.js');
-const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
+const client = new Client({ intents: [Intents.FLAGS.GUILDS,Intents.FLAGS.GUILD_MESSAGES,Intents.FLAGS.DIRECT_MESSAGES] });
 const db = require("./sqlDatabase.js");
 const discordManager = require("./discordManager.js");
 const cacheManager = require("./cacheManager.js");
@@ -8,7 +9,6 @@ const help = require("./help");
 const logger = require("./logger.js");
 const debugLogger = require("./debugLogger.js");
 const statusUpdater = require('./statusUpdater.js');
-require('dotenv').config();
 
 // Env Variables
 const clientId = process.env.TWITCH_ID;
@@ -140,10 +140,10 @@ async function getLive(){
     }
   }
   if(client.user.presence.status == "dnd" && retryCount == 1){
-    client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'online' });
+    client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: 'WATCHING'}], status: 'online' });
   }
   else if(client.user.presence.status == "online" && retryCount > 1){
-    client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'dnd' });
+    client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: 'WATCHING'}], status: 'dnd' });
   }
   interval = setTimeout(getLive,DELAY*retryCount);
 }
@@ -218,8 +218,8 @@ function parseDiscordCommand(msg) {
     return;
   }
 
-  if (msg.channel.type === "dm"){
-    // We should always have send message perms in a dm.
+  if (msg.channel.type === "DM"){
+    // We should always have send message perms in a DM.
     msg.channel.send(":x: This command must be used in a server.");
     return;
   }
@@ -237,7 +237,7 @@ function parseDiscordCommand(msg) {
     return;
   }
 
-  if(msg.channel.type !== "text"){
+  if(msg.channel.type !== "GUILD_TEXT"){
     msg.channel.send(":x: This command must be used in a text channel.");
     return;
   }
@@ -671,7 +671,7 @@ function parseDiscordCommand(msg) {
     const str = msg.content.toUpperCase().replace(prefix.toUpperCase() + "HELP ", "");
     const args = str.split(" ");
     const helpEmbed = help(args[0]);
-    msg.channel.send(helpEmbed);
+    msg.channel.send({ embeds: [helpEmbed]});
   }
   else if(cmd.startsWith("TESTMSG") || cmd.startsWith("TSTMSG") || cmd.startsWith("TESTMESSAGE") || cmd.startsWith("TSTMESSAGE")){
     const str = msg.content.toUpperCase().replace(new RegExp(`${escapeRegExp(prefix)}(?:te?stmsg |te?stmessage )`,'i'), "");
@@ -749,7 +749,7 @@ function processOwnerCommands(msg){
   const cmd = msg.content.toUpperCase().replace(prefix.toUpperCase(), "");
 
   if(cmd.startsWith("BL")) {
-	if (msg.channel.type !== "dm"){
+	if (msg.channel.type !== "DM"){
       if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
         if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
@@ -790,7 +790,7 @@ function processOwnerCommands(msg){
 	return true; // Command handled do not run main handler
   }
   else if(cmd.startsWith("GBL")) {
-	if (msg.channel.type !== "dm"){
+	if (msg.channel.type !== "DM"){
       if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
         if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
@@ -823,7 +823,7 @@ function processOwnerCommands(msg){
 	return true; // Command handled do not run main handler
   }
   else if(cmd.startsWith("GUILDS")){
-    if (msg.channel.type !== "dm"){
+    if (msg.channel.type !== "DM"){
       if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
         if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
@@ -849,7 +849,7 @@ function processOwnerCommands(msg){
     return true; // Command handled do not run main handler
   }
   else if(cmd.startsWith("INVITE")){
-    if (msg.channel.type !== "dm"){
+    if (msg.channel.type !== "DM"){
       if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
         if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
@@ -866,7 +866,7 @@ function processOwnerCommands(msg){
     return true;
   }
   else if(cmd.startsWith("PURGE")){
-    if (msg.channel.type !== "dm"){
+    if (msg.channel.type !== "DM"){
       if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
         if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
@@ -913,7 +913,7 @@ function processOwnerCommands(msg){
     return true; // Command handled do not run main handler
   }
   else if(cmd.startsWith("UBL")) {
-	if (msg.channel.type !== "dm"){
+	if (msg.channel.type !== "DM"){
       if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
         if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
@@ -955,7 +955,7 @@ client.on("ready", () => {
 	if(firstLogin !== 1) {
 	  firstLogin = 1;
 	  logger.log("Discord client connected successfully.");
-    client.user.setPresence({ activity: { name: `for live channels - ${prefix}help`, type: 'WATCHING'}, status: 'online' });
+    client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: 'WATCHING'}], status: 'online' });
     client.users.fetch(process.env.OWNER_ID).then((user) => {
       user.createDM().then((channel) => {
         db.setLogger(channel);
@@ -1027,20 +1027,20 @@ client.on('interactionCreate', interaction => {
 	console.log(interaction);
 });
 
-client.on("message", (msg) => {
+client.on("messageCreate", (msg) => {
 	if(msg.author !== client.user) {
 	  if(msg.content.toUpperCase().startsWith(prefix.toUpperCase())) {
-      if(msg.content.toUpperCase() === `${prefix.toUpperCase()}PING`){
-        const pingA = Date.now() - msg.createdTimestamp;
-        msg.channel.send(':information_source: Pong!').then((message) =>{
-          const pingB = Date.now() - message.createdTimestamp;
-          const pingAB = pingA + pingB;
-          message.edit(`:information_source: Pong! - Time taken **${pingAB}ms**`);
-        });
-      }
-      else{
-		    parseDiscordCommand(msg);
-      }
+		  if(msg.content.toUpperCase() === `${prefix.toUpperCase()}PING`){
+			const pingA = Date.now() - msg.createdTimestamp;
+			msg.channel.send(':information_source: Pong!').then((message) =>{
+			  const pingB = Date.now() - message.createdTimestamp;
+			  const pingAB = pingA + pingB;
+			  message.edit(`:information_source: Pong! - Time taken **${pingAB}ms**`);
+			});
+		  }
+		  else{
+				parseDiscordCommand(msg);
+		  }
 	  }
 	}
   else{
