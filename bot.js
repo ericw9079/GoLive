@@ -166,8 +166,18 @@ async function sendMessage(uid,game,title,name){
             message = message.replace("{url}",`https://twitch.tv/${channel}`).replace("{game}",game).replace("{channel}",name).replace("{title}",title).replace("{everyone}","@everyone");
             const perm = checkPerms(discordChannel.id,discordChannel.guild);
             if(perm !== CANT_SEND){
-              discordChannel.send(message);
-              notifications.push(discordChannel.id);
+			  let messages = await discordChannel.messages.fetch();
+			  let mentions = refMsg.match(/<?@[&!]?(?:\d+>|here|everyone)/i);
+			  if(mentions == null) {
+				mentions = [];
+			  }
+			  messages = messages.filter((message) => {
+				return message.createdTimestamp >= Date.parse("2022-06-03T00:00:00Z") && (mentions.length == 0 || mentions.some(element => message.content.includes(element))) && message.content.includes(`https://twitch.tv/${channel}`);
+			  });
+			  if(messages.size == 0) {
+				discordChannel.send(message);
+				notifications.push(discordChannel.id);
+			  }
             }
           }
         }
@@ -1044,7 +1054,7 @@ client.on("messageCreate", (msg) => {
 	  }
 	}
   else{
-    if (msg.channel.type === 'news' && notifications.includes(msg.channel.id)) {
+    if (msg.crosspostable && notifications.includes(msg.channel.id)) {
       msg.crosspost();
       notifications.splice(notifications.indexOf(msg.channel.id), 1);
     }
