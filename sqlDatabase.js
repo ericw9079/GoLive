@@ -191,7 +191,7 @@ function removeWildDiscord(guild) {
 
 function listDiscords() {
 	return new Promise((resolve,reject) => {
-		pool.query(`SELECT uid,type FROM Discord`, function (err, result) {
+		pool.query(`SELECT DISTINCT uid,type FROM Discord`, function (err, result) {
 			if (err) return reject(err);
 			resolve(result);
 		});

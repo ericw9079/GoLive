@@ -106,7 +106,7 @@ async function checkLive(uid){
   if(oldStatus == OFFLINE && newStatus == ONLINE && !cooldowns.has(name)){
     await cacheManager.update(uid,resp.data.data[0].user_login);
     if(!/\[.*?test.*?]/gi.test(resp.data.data[0].title)){
-      sendMessage(uid,resp.data.data[0].game_name,resp.data.data[0].title,resp.data.data[0].user_name);
+      sendMessage(uid,resp.data.data[0].game_name,resp.data.data[0].title,resp.data.data[0].user_name,resp.data.data[0].started_at);
     }
     else{
       logger.log("Skipping message: test flag set");
@@ -148,7 +148,7 @@ async function getLive(){
   interval = setTimeout(getLive,DELAY*retryCount);
 }
 
-async function sendMessage(uid,game,title,name){
+async function sendMessage(uid,game,title,name,startedAt=""){
   const channel = await cacheManager.name(uid);
   const channels = await db.get(`Discord:${uid}`);
   for(const guildId in channels){
@@ -163,16 +163,16 @@ async function sendMessage(uid,game,title,name){
             if(!message){
               message = "{channel} went LIVE with {game}! Check them out at {url}";
             }
-            message = message.replace("{url}",`https://twitch.tv/${channel}`).replace("{game}",game).replace("{channel}",name).replace("{title}",title).replace("{everyone}","@everyone");
+            message = message.replace("{url}",`https://twitch.tv/${channel}`).replace("{game}",game).replace("{channel}",name.replace("_","\\_")).replace("{title}",title).replace("{everyone}","@everyone");
             const perm = checkPerms(discordChannel.id,discordChannel.guild);
             if(perm !== CANT_SEND){
 			  let messages = await discordChannel.messages.fetch();
-			  let mentions = refMsg.match(/<?@[&!]?(?:\d+>|here|everyone)/i);
+			  let mentions = message.match(/<?@[&!]?(?:\d+>|here|everyone)/i);
 			  if(mentions == null) {
 				mentions = [];
 			  }
-			  messages = messages.filter((message) => {
-				return message.createdTimestamp >= Date.parse("2022-06-03T00:00:00Z") && (mentions.length == 0 || mentions.some(element => message.content.includes(element))) && message.content.includes(`https://twitch.tv/${channel}`);
+			  messages = messages.filter((msg) => {
+				return msg.createdTimestamp >= Date.parse(startedAt) && (mentions.length == 0 || mentions.some(element => msg.content.includes(element))) && msg.content.includes(`https://twitch.tv/${channel}`);
 			  });
 			  if(messages.size == 0) {
 				discordChannel.send(message);
@@ -196,7 +196,7 @@ async function testMessage(twitchChannel,channel){
     if(!message){
       message = "{channel} went LIVE with {game}! Check them out at {url}";
     }
-    message = message.replace("{url}",`https://twitch.tv/${twitchChannel}`).replace("{game}","Test Game").replace("{channel}",twitchChannel).replace("{title}","Test Message").replace("{everyone}","@everyone");
+    message = message.replace("{url}",`https://twitch.tv/${twitchChannel}`).replace("{game}","Test Game").replace("{channel}",twitchChannel.replace("_","\\_")).replace("{title}","Test Message").replace("{everyone}","@everyone");
     const postChannel = await discordManager.getChannel(await cacheManager.uid(twitchChannel),channel.guild.id);
     const perm = checkPerms(postChannel,channel.guild);
     let permResult = "";
@@ -639,15 +639,17 @@ function parseDiscordCommand(msg) {
 	  try {
 		  const keys = await db.list("Discord");
 		  for(key of keys){
+			const guilds = await db.get(`Discord:${key}`);
+			if(!guilds[`id${guildId}`]) continue;
 			if(key == "*") continue;
 			if(`${key}`.startsWith("^")) {
-				const name = await cacheManager.name(key.substring(1));
+				const name = (await cacheManager.name(key.substring(1))).replace("_","\\_");
 				ignoreList += `${name}\n`;
 			}
 			else {
 				const channel = await discordManager.getChannel(key,guildId);
 				if(channel !== undefined){
-				  const name = await cacheManager.name(key);
+				  const name = (await cacheManager.name(key)).replace("_","\\_");
 				  const msg  = await discordManager.getMessage(key,guildId,false);
 				  if(msg){
 					s += `${name} (in <#${channel}> with custom message)\n`;
@@ -783,7 +785,7 @@ function processOwnerCommands(msg){
 			try {
 				const res = await db.addBL(`${Number(uid)}`);
 				if(res) {
-					msg.channel.send(`:white_checkmark: Added ${args[0]}`);
+					msg.channel.send(`:white_check_mark: Added ${args[0]}`);
 				}
 				else {
 					msg.channel.send(`:x: Unable to add ${args[0]}`)
@@ -817,7 +819,7 @@ function processOwnerCommands(msg){
 		try {
 			const res = await db.get("bl");
 			if(res && res.length > 0) {
-				msg.channel.send(res.map((e)=>`${e}\n`));
+				msg.channel.send(res.join('\n'));
 			}
 			else {
 				msg.channel.send(`:x: No uids`)
@@ -946,7 +948,7 @@ function processOwnerCommands(msg){
 		const funct = async () => {
 			try {
 				await db.removeBL(`${Number(uid)}`);
-				msg.channel.send(`:white_checkmark: Removed ${args[0]}`);
+				msg.channel.send(`:white_check_mark: Removed ${args[0]}`);
 			}
 			catch(e) {
 				msg.channel.send(":x: An Error occured adding the uid");
