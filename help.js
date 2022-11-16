@@ -1,8 +1,8 @@
-const {MessageEmbed} = require("discord.js");
+const {EmbedBuilder} = require("discord.js");
 
 const prefix = process.env.DISCORD_PREFIX;
 
-const helpEmbed = new MessageEmbed()
+const helpEmbed = new EmbedBuilder()
     .setTitle('Commands for GoLive')
 	  .addFields(
 		  {name:`${prefix}add <twitch channel> [discord channel]`,value:"Start receiving notifications when the channel goes live",inline:true},
@@ -17,7 +17,7 @@ const helpEmbed = new MessageEmbed()
 	  )
 	  .setFooter({text:"Don't add the <> or [] to the command"});
 
-const msgEmbed = new MessageEmbed()
+const msgEmbed = new EmbedBuilder()
     .setColor([214,25,25])
     .setTitle("Message Variables")
     .setDescription("Custom messages can be set on a per-channel basis. A number of variables are supported and are listed below.\nThe default message is:{channel} went LIVE with {game}! Check them out at {url}")

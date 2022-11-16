@@ -1,4 +1,4 @@
-const {MessageEmbed} = require('discord.js');
+const {EmbedBuilder} = require('discord.js');
 let discordLogger = null;
 module.exports = {
 	log: function(text){
@@ -6,7 +6,7 @@ module.exports = {
 		console.log(`[${d.toLocaleString("en-CA",{dateStyle:"short",timeStyle:"medium",hour12:false,timeZone:"America/New_York"})}|LOG] `+text);
 		if(discordLogger) {
       // Also log in discord via webhook
-			discordLogger.send({embeds:[new MessageEmbed()
+			discordLogger.send({embeds:[new EmbedBuilder()
 				.setTitle("LOG")
 				.setColor("#FFFFFF")
 				.setDescription(text)
@@ -19,7 +19,7 @@ module.exports = {
 		console.info(`[${d.toLocaleString("en-CA",{dateStyle:"short",timeStyle:"medium",hour12:false,timeZone:"America/New_York"})}|\x1b[96mINFO\x1b[89m\x1b[0m] `+text);
 		if(discordLogger) {
       // Also log in discord via webhook
-			discordLogger.send({embeds:[new MessageEmbed()
+			discordLogger.send({embeds:[new EmbedBuilder()
 				.setTitle("INFO")
 				.setColor("#183EFA")
 				.setDescription(text)
@@ -32,7 +32,7 @@ module.exports = {
 		console.warn(`[${d.toLocaleString("en-CA",{dateStyle:"short",timeStyle:"medium",hour12:false,timeZone:"America/New_York"})}|\x1b[93mWARN\x1b[39m\x1b[0m] `+text);
 		if(discordLogger) {
       // Also log in discord via webhook
-			discordLogger.send({embeds:[new MessageEmbed()
+			discordLogger.send({embeds:[new EmbedBuilder()
 				.setTitle("WARN!")
 				.setColor("#FFEB2A")
 				.setDescription(text)
@@ -45,7 +45,7 @@ module.exports = {
 		console.error(`[${d.toLocaleString("en-CA",{dateStyle:"short",timeStyle:"medium",hour12:false,timeZone:"America/New_York"})}|\x1b[91mERROR\x1b[39m\x1b[0m] \x1b[91m`+text+`\x1b[39m\x1b[0m`);
 		if(discordLogger) {
       // Also log in discord via webhook
-			discordLogger.send({embeds:[new MessageEmbed()
+			discordLogger.send({embeds:[new EmbedBuilder()
 				.setTitle("ERROR!")
 				.setColor("#FF160C")
 				.setDescription(text)

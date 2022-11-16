@@ -1,5 +1,4 @@
 const mysql = require('mysql2');
-const { Channel } = require('discord.js');
 
 const pool = mysql.createPool({
   connectionLimit : 10,
@@ -9,21 +8,6 @@ const pool = mysql.createPool({
   database: "golive",
   supportBigNumbers: true
 });
-
-var logger = {send:function(){}};
-
-function setLogger(logChannel){
-  let updated = false;
-  if(logChannel instanceof Channel){
-    if(logChannel.isText()){
-      logger = logChannel;
-      updated = true;
-    }
-  }
-  if(!updated){
-    logger = {send:function(){}}
-  }
-}
 
 // BEGIN DISCORD
 
@@ -603,5 +587,4 @@ module.exports = {
   removeBL,
   get,
   list,
-  setLogger,
 }

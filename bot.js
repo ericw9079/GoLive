@@ -1,12 +1,12 @@
 require('dotenv').config();
 const axios = require('axios');
-const { Client, Intents } = require('discord.js');
-const client = new Client({ intents: [Intents.FLAGS.GUILDS,Intents.FLAGS.GUILD_MESSAGES,Intents.FLAGS.DIRECT_MESSAGES] });
+const { Client, GatewayIntentBits, ChannelType } = require('discord.js');
+const client = new Client({ intents: [GatewayIntentBits.Guilds,GatewayIntentBits.GuildMessages,GatewayIntentBits.DirectMessages] });
+const logger = require("./logger.js");
 const db = require("./sqlDatabase.js");
 const discordManager = require("./discordManager.js");
 const cacheManager = require("./cacheManager.js");
 const help = require("./help");
-const logger = require("./logger.js");
 const debugLogger = require("./debugLogger.js");
 const statusUpdater = require('./statusUpdater.js');
 
@@ -48,12 +48,10 @@ let retryCount = 1;
 let cooldowns = new Set();
 let errMsg = "";
 
-//require("./deploy-commands.js");
-
 statusUpdater.init(statusSite);
 
 function checkPerms(channel,guild){
-  const perms = guild.me.permissionsIn(channel);
+  const perms = guild.members.me.permissionsIn(channel);
     if(perms.has(['VIEW_CHANNEL','SEND_MESSAGES','EMBED_LINKS'])){
       return CAN_SEND;
     }
@@ -158,7 +156,7 @@ async function sendMessage(uid,game,title,name,startedAt=""){
         discordChannel = await channels[guildId];
         if(discordChannel){
           discordChannel = guild.channels.resolve(discordChannel);
-          if(discordChannel && discordChannel.isText()){
+          if(discordChannel && discordChannel.isTextBased()){
             let message = await discordManager.getMessage(uid,guildId.replace("id",""));
             if(!message){
               message = "{channel} went LIVE with {game}! Check them out at {url}";
@@ -178,6 +176,9 @@ async function sendMessage(uid,game,title,name,startedAt=""){
 				discordChannel.send(message);
 				notifications.push(discordChannel.id);
 			  }
+			  else {
+				logger.log(`${name}: self post detected`);
+			  }
             }
           }
         }
@@ -191,7 +192,7 @@ async function sendMessage(uid,game,title,name,startedAt=""){
 }
 
 async function testMessage(twitchChannel,channel){
-  if(channel && channel.isText()){
+  if(channel && channel.type === ChannelType.GuildText){
     let message = await discordManager.getMessage(await cacheManager.uid(twitchChannel),channel.guild.id);
     if(!message){
       message = "{channel} went LIVE with {game}! Check them out at {url}";
@@ -228,15 +229,15 @@ function parseDiscordCommand(msg) {
     return;
   }
 
-  if (msg.channel.type === "DM"){
+  if (msg.channel.type === ChannelType.DM){
     // We should always have send message perms in a DM.
     msg.channel.send(":x: This command must be used in a server.");
     return;
   }
 
-  if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+  if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
     // We can't send in this channel
-    if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+    if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
       // But we can react so indicate the error
       msg.react('⚠️');
     }
@@ -247,7 +248,7 @@ function parseDiscordCommand(msg) {
     return;
   }
 
-  if(msg.channel.type !== "GUILD_TEXT"){
+  if(msg.channel.type !== ChannelType.GuildText){
     msg.channel.send(":x: This command must be used in a text channel.");
     return;
   }
@@ -761,10 +762,10 @@ function processOwnerCommands(msg){
   const cmd = msg.content.toUpperCase().replace(prefix.toUpperCase(), "");
 
   if(cmd.startsWith("BL")) {
-	if (msg.channel.type !== "DM"){
-      if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+	if (msg.channel.type !== ChannelType.DM){
+      if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
-        if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -802,10 +803,10 @@ function processOwnerCommands(msg){
 	return true; // Command handled do not run main handler
   }
   else if(cmd.startsWith("GBL")) {
-	if (msg.channel.type !== "DM"){
-      if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+	if (msg.channel.type !== ChannelType.DM){
+      if(!msg.guild.me.members.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
-        if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -835,10 +836,10 @@ function processOwnerCommands(msg){
 	return true; // Command handled do not run main handler
   }
   else if(cmd.startsWith("GUILDS")){
-    if (msg.channel.type !== "DM"){
-      if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+    if (msg.channel.type !== ChannelType.DM){
+      if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
-        if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -861,10 +862,10 @@ function processOwnerCommands(msg){
     return true; // Command handled do not run main handler
   }
   else if(cmd.startsWith("INVITE")){
-    if (msg.channel.type !== "DM"){
-      if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+    if (msg.channel.type !== ChannelType.DM){
+      if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
-        if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -878,10 +879,10 @@ function processOwnerCommands(msg){
     return true;
   }
   else if(cmd.startsWith("PURGE")){
-    if (msg.channel.type !== "DM"){
-      if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+    if (msg.channel.type !== ChannelType.DM){
+      if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
-        if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -925,10 +926,10 @@ function processOwnerCommands(msg){
     return true; // Command handled do not run main handler
   }
   else if(cmd.startsWith("UBL")) {
-	if (msg.channel.type !== "DM"){
-      if(!msg.guild.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+	if (msg.channel.type !== ChannelType.DM){
+      if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
         // We can't send in this channel
-        if(msg.guild.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -967,12 +968,7 @@ client.on("ready", () => {
 	if(firstLogin !== 1) {
 	  firstLogin = 1;
 	  logger.log("Discord client connected successfully.");
-    client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: 'WATCHING'}], status: 'online' });
-    client.users.fetch(process.env.OWNER_ID).then((user) => {
-      user.createDM().then((channel) => {
-        db.setLogger(channel);
-      }).catch((e)=>{logger.error(e)});
-    }).catch((e)=>{logger.error(e)});
+	  client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: 'WATCHING'}], status: 'online' });
 	  
 	  //Initiate the twitch fetch loop
 	  start();

@@ -1,32 +1,113 @@
-const { REST } = require('@discordjs/rest');
-const { Routes } = require('discord-api-types/v9');
+const { SlashCommandBuilder } = require('@discordjs/builders');
+const { REST, Routes, PermissionsBitField } = require('discord.js');
+require('dotenv').config();
 
 const clientId = process.env.DISCORD_CLIENT;
-const guildId = process.env.DISCORD_GUILD;
 const token = process.env.DISCORD_TOKEN;
 
 const commands = [
-	{
-    name: 'test',
-    description: 'A test command',
-    options: [
-      {
-        type: "CHANNEL",
-        name: "channel",
-        description: "Channel to post in",
-        required: true
-      }
-    ],
-  }
+	new SlashCommandBuilder()
+		.setName('add')
+		.setDescription('Start receiving notifications when a channel goes live')
+		.setDMPermission(false)
+		.setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+		.addSubcommand(subcommand => 
+			subcommand
+				.setName('channel')
+				.setDescription('Add a specific twitch channel')
+				.addStringOption(option => option.setName('twitchchannel').setDescription('Twitch channel to start receiving notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
+				.addChannelOption(option => option.setName('discordchannel').setDescription('Discord channel to send notifications in'))
+		)
+		.addSubcommand(subcommand => 
+			subcommand
+				.setName('all')
+				.setDescription('Receive notifications for any channel GoLive is monitoring')
+				.addChannelOption(option => option.setName('discordchannel').setDescription('Discord channel to send notifications in'))
+		),
+	new SlashCommandBuilder()
+		.setName('remove')
+		.setDescription('Stop receiving notifications when a channel goes live')
+		.setDMPermission(false)
+		.setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+		.addSubcommand(subcommand => 
+			subcommand
+				.setName('channel')
+				.setDescription('Remove a specific twitch channel')
+				.addStringOption(option => option.setName('twitchchannel').setDescription('Twitch channel to stop receiving notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
+		)
+		.addSubcommand(subcommand => 
+			subcommand
+				.setName('all')
+				.setDescription("Stop receiving notifications for all channels GoLive is monitoring that aren't explictly added")
+		),
+	new SlashCommandBuilder()
+		.setName('ignore')
+		.setDescription('Prevent notifications from being received for a specific channel')
+		.setDMPermission(false)
+		.setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+		.addStringOption(option => option.setName('twitchchannel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25)),
+	new SlashCommandBuilder()
+		.setName('unignore')
+		.setDescription('Allow notifications to be received for a specific channel')
+		.setDMPermission(false)
+		.setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+		.addStringOption(option => option.setName('twitchchannel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25)),
+	new SlashCommandBuilder()
+		.setName('message')
+		.setDescription('Set the notification message for a channel')
+		.setDMPermission(false)
+		.setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+		.addStringOption(option => option.setName('twitchchannel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
+		.addStringOption(option => option.setName('message').setDescription('Notification Message. Leave empty to clear')),
+	new SlashCommandBuilder()
+		.setName('default')
+		.setDescription('Configure a server default')
+		.setDMPermission(false)
+		.setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('channel')
+				.setDescription('Set the default channel for notifications to be sent to if no channel is specified')
+				.addChannelOption(option => option.setName('discordchannel').setDescription('Discord channel to default to. Leave empty to clear')
+			)
+		)
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('message')
+				.setDescription('Set the default server notification message for channels without their own message')
+				.addStringOption(option => option.setName('message').setDescription('Default Notification Message. Leave empty to clear')
+			)
+		),
+	new SlashCommandBuilder()
+		.setName('list')
+		.setDescription('List channels')
+		.setDMPermission(false)
+		.setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('current')
+				.setDescription('List the channels notifications are currently being received for')
+		)
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('available')
+				.setDescription('List the channels that could be added')
+		),
+	new SlashCommandBuilder()
+		.setName('help')
+		.setDescription('Get Help')
+		.setDMPermission(true)
+		.setDefaultMemberPermissions(undefined)
+		.addStringOption(option => option.setName('topic').setDescription('Specific help topic')),
 ]
 	.map(command => command.toJSON());
 
-const rest = new REST({ version: '9' }).setToken(token);
+const rest = new REST({ version: '10' }).setToken(token);
 
 (async () => {
 	try {
 		await rest.put(
-			Routes.applicationGuildCommands(clientId, guildId),
+			Routes.applicationCommands(clientId),
 			{ body: commands },
 		);
 
