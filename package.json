@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
+    "@ericw9079/logger": "^2.0.2",
     "@replit/database": "^2.0.0",
     "axios": "^0.21.1",
     "discord-api-types": "^0.22.0",

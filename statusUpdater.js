@@ -1,4 +1,4 @@
-const logger = require('./logger.js');
+const logger = require('@ericw9079/logger');
 
 const DELAY = 5000;
 

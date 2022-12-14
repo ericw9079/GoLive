@@ -2,7 +2,7 @@ require('dotenv').config();
 const axios = require('axios');
 const { Client, GatewayIntentBits, ChannelType } = require('discord.js');
 const client = new Client({ intents: [GatewayIntentBits.Guilds,GatewayIntentBits.GuildMessages,GatewayIntentBits.DirectMessages] });
-const logger = require("./logger.js");
+const logger = require("@ericw9079/logger");
 const db = require("./sqlDatabase.js");
 const discordManager = require("./discordManager.js");
 const cacheManager = require("./cacheManager.js");
@@ -19,7 +19,7 @@ const botPerms = process.env.DISCORD_PERMS;
 const botScopes = process.env.DISCORD_SCOPES;
 const logChannel = process.env.DISCORD_LOG; // Discord log channel
 const statusConfig = {
-	baseURL: 'https://golive.epicboy.repl.co',
+	baseURL: 'https://golive.ericw.tech',
 	headers: {'X-auth-token': process.env.AUTH_TOKEN}
 }
 // End Env Variables
