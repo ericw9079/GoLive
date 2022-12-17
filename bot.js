@@ -1,13 +1,12 @@
 require('dotenv').config();
 const axios = require('axios');
-const { Client, GatewayIntentBits, ChannelType } = require('discord.js');
-const client = new Client({ intents: [GatewayIntentBits.Guilds,GatewayIntentBits.GuildMessages,GatewayIntentBits.DirectMessages] });
+const { Client, GatewayIntentBits, ChannelType, PermissionsBitField } = require('discord.js');
+const client = new Client({ intents: [GatewayIntentBits.Guilds,GatewayIntentBits.GuildMessages,GatewayIntentBits.DirectMessages, GatewayIntentBits.MessageContent] });
 const logger = require("@ericw9079/logger");
 const db = require("./sqlDatabase.js");
 const discordManager = require("./discordManager.js");
 const cacheManager = require("./cacheManager.js");
 const help = require("./help");
-const debugLogger = require("./debugLogger.js");
 const statusUpdater = require('./statusUpdater.js');
 
 // Env Variables
@@ -52,10 +51,10 @@ statusUpdater.init(statusSite);
 
 function checkPerms(channel,guild){
   const perms = guild.members.me.permissionsIn(channel);
-    if(perms.has(['VIEW_CHANNEL','SEND_MESSAGES','EMBED_LINKS'])){
+    if(perms.has([PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks])){
       return CAN_SEND;
     }
-    if(perms.has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+    if(perms.has([PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages])){
       return CANT_EMBED;
     }
     return CANT_SEND;
@@ -235,16 +234,16 @@ function parseDiscordCommand(msg) {
     return;
   }
 
-  if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+  if(!msg.guild.members.me.permissionsIn(msg.channel).has([PermissionsBitField.Flags.ViewChannel,PermissionsBitField.Flags.SendMessages])){
     // We can't send in this channel
-    if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+    if(msg.guild.members.me.permissionsIn(msg.channel).has(PermissionsBitField.Flags.AddReactions)){
       // But we can react so indicate the error
       msg.react('⚠️');
     }
     return;
   }
 
-  if(!msg.member.permissionsIn(msg.channel).has("MANAGE_GUILD") && msg.author.id !== process.env.OWNER_ID){
+  if(!msg.member.permissionsIn(msg.channel).has(PermissionsBitField.Flags.ManageGuild) && msg.author.id !== process.env.OWNER_ID){
     return;
   }
 
@@ -763,9 +762,9 @@ function processOwnerCommands(msg){
 
   if(cmd.startsWith("BL")) {
 	if (msg.channel.type !== ChannelType.DM){
-      if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+      if(!msg.guild.members.me.permissionsIn(msg.channel).has([PermissionsBitField.Flags.ViewChannel,PermissionsBitField.Flags.SendMessages])){
         // We can't send in this channel
-        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has(PermissionsBitField.Flags.AddReactions)){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -804,9 +803,9 @@ function processOwnerCommands(msg){
   }
   else if(cmd.startsWith("GBL")) {
 	if (msg.channel.type !== ChannelType.DM){
-      if(!msg.guild.me.members.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+      if(!msg.guild.me.members.permissionsIn(msg.channel).has([PermissionsBitField.Flags.ViewChannel,PermissionsBitField.Flags.SendMessages])){
         // We can't send in this channel
-        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has(PermissionsBitField.Flags.AddReactions)){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -837,9 +836,9 @@ function processOwnerCommands(msg){
   }
   else if(cmd.startsWith("GUILDS")){
     if (msg.channel.type !== ChannelType.DM){
-      if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+      if(!msg.guild.members.me.permissionsIn(msg.channel).has([PermissionsBitField.Flags.ViewChannel,PermissionsBitField.Flags.SendMessages])){
         // We can't send in this channel
-        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has(PermissionsBitField.Flags.AddReactions)){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -863,9 +862,9 @@ function processOwnerCommands(msg){
   }
   else if(cmd.startsWith("INVITE")){
     if (msg.channel.type !== ChannelType.DM){
-      if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+      if(!msg.guild.members.me.permissionsIn(msg.channel).has([PermissionsBitField.Flags.ViewChannel,PermissionsBitField.Flags.SendMessages])){
         // We can't send in this channel
-        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has(PermissionsBitField.Flags.AddReactions)){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -880,9 +879,9 @@ function processOwnerCommands(msg){
   }
   else if(cmd.startsWith("PURGE")){
     if (msg.channel.type !== ChannelType.DM){
-      if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+      if(!msg.guild.members.me.permissionsIn(msg.channel).has([PermissionsBitField.Flags.ViewChannel,PermissionsBitField.Flags.SendMessages])){
         // We can't send in this channel
-        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has(PermissionsBitField.Flags.AddReactions)){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -927,9 +926,9 @@ function processOwnerCommands(msg){
   }
   else if(cmd.startsWith("UBL")) {
 	if (msg.channel.type !== ChannelType.DM){
-      if(!msg.guild.members.me.permissionsIn(msg.channel).has(['VIEW_CHANNEL','SEND_MESSAGES'])){
+      if(!msg.guild.members.me.permissionsIn(msg.channel).has([PermissionsBitField.Flags.ViewChannel,PermissionsBitField.Flags.SendMessages])){
         // We can't send in this channel
-        if(msg.guild.members.me.permissionsIn(msg.channel).has('ADD_REACTIONS')){
+        if(msg.guild.members.me.permissionsIn(msg.channel).has(PermissionsBitField.Flags.AddReactions)){
           // But we can react so indicate the error
           msg.react('⚠️');
         }
@@ -1037,6 +1036,7 @@ client.on('interactionCreate', interaction => {
 
 client.on("messageCreate", (msg) => {
 	if(msg.author !== client.user) {
+	console.log(msg);
 	  if(msg.content.toUpperCase().startsWith(prefix.toUpperCase())) {
 		  if(msg.content.toUpperCase() === `${prefix.toUpperCase()}PING`){
 			const pingA = Date.now() - msg.createdTimestamp;
@@ -1086,8 +1086,6 @@ function start(){
 	twitch.defaults.headers.common['Client-ID'] = clientId;
 	getLive();
 }
-
-//client.on("debug", debugLogger.log);
 
 logger.log("Attempting Discord Login");
 client.login(process.env.DISCORD_TOKEN);
