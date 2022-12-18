@@ -98,7 +98,7 @@ const commands = [
 		.setDescription('Get Help')
 		.setDMPermission(true)
 		.setDefaultMemberPermissions(undefined)
-		.addStringOption(option => option.setName('topic').setDescription('Specific help topic')),
+		.addStringOption(option => option.setName('topic').setDescription('Specific help topic').addChoices({ name: 'Message', value: 'message'})),
 	new SlashCommandBuilder()
 		.setName('ping')
 		.setDescription('Ping.......Pong')

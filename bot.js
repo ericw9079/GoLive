@@ -138,10 +138,10 @@ async function getLive(){
     }
   }
   if(client.user.presence.status == "dnd" && retryCount == 1){
-    client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: ActivityType.Watching}], status: 'online' });
+    client.user.setPresence({ activities: [{ name: `for live channels - /help`, type: ActivityType.Watching}], status: 'online' });
   }
   else if(client.user.presence.status == "online" && retryCount > 1){
-    client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: ActivityType.Watching}], status: 'dnd' });
+    client.user.setPresence({ activities: [{ name: `for live channels - /help`, type: ActivityType.Watching}], status: 'dnd' });
   }
   interval = setTimeout(getLive,DELAY*retryCount);
 }
@@ -968,7 +968,7 @@ client.on("ready", () => {
 	if(firstLogin !== 1) {
 	  firstLogin = 1;
 	  logger.log("Discord client connected successfully.");
-	  client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: ActivityType.Watching}], status: 'online' });
+	  client.user.setPresence({ activities: [{ name: `for live channels - /help`, type: ActivityType.Watching}], status: 'online' });
 	  
 	  //Initiate the twitch fetch loop
 	  start();
@@ -1030,12 +1030,12 @@ client.on("error", (err) => {
 	setTimeout(() => { client.login(); }, 6000);
 });
 
-client.on('interactionCreate', interaction => {
+client.on('interactionCreate', async (interaction) => {
 	if (!interaction.isCommand()) return;
 	const commandName = interaction.commandName;
 	if(!fs.existsSync(`./interactions/${commandName.toLowerCase()}.js`)) return;
 	try {
-		require(`./interactions/${commandName.toLowerCase()}.js`)(interaction);
+		await require(`./interactions/${commandName.toLowerCase()}.js`)(interaction);
 	} catch (e) {
 		logger.error(e);
 	}
