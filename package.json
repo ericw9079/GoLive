@@ -1,7 +1,7 @@
 {
   "name": "golive",
   "version": "1.0.0",
-  "description": "",
+  "description": "Reliable discord notifications when a streamer goes live on twitch",
   "main": "bot.js",
   "dependencies": {
     "@ericw9079/logger": "^2.0.2",
@@ -11,7 +11,10 @@
     "dotenv": "^16.0.1",
     "mysql2": "^2.3.3"
   },
-  "scripts": {},
+  "scripts": {
+	deployCommands: "node deploy-commands.js",
+	start: "node bot.js"
+  },
   "keywords": [],
   "author": "ericw9079",
   "repository": {

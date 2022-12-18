@@ -1,7 +1,8 @@
 require('dotenv').config();
 const axios = require('axios');
-const { Client, GatewayIntentBits, ChannelType, PermissionsBitField } = require('discord.js');
+const { Client, GatewayIntentBits, ChannelType, PermissionsBitField, ActivityType } = require('discord.js');
 const client = new Client({ intents: [GatewayIntentBits.Guilds,GatewayIntentBits.GuildMessages,GatewayIntentBits.DirectMessages, GatewayIntentBits.MessageContent] });
+const fs = require('fs');
 const logger = require("@ericw9079/logger");
 const db = require("./sqlDatabase.js");
 const discordManager = require("./discordManager.js");
@@ -137,10 +138,10 @@ async function getLive(){
     }
   }
   if(client.user.presence.status == "dnd" && retryCount == 1){
-    client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: 'WATCHING'}], status: 'online' });
+    client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: ActivityType.Watching}], status: 'online' });
   }
   else if(client.user.presence.status == "online" && retryCount > 1){
-    client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: 'WATCHING'}], status: 'dnd' });
+    client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: ActivityType.Watching}], status: 'dnd' });
   }
   interval = setTimeout(getLive,DELAY*retryCount);
 }
@@ -967,7 +968,7 @@ client.on("ready", () => {
 	if(firstLogin !== 1) {
 	  firstLogin = 1;
 	  logger.log("Discord client connected successfully.");
-	  client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: 'WATCHING'}], status: 'online' });
+	  client.user.setPresence({ activities: [{ name: `for live channels - ${prefix}help`, type: ActivityType.Watching}], status: 'online' });
 	  
 	  //Initiate the twitch fetch loop
 	  start();
@@ -1031,12 +1032,17 @@ client.on("error", (err) => {
 
 client.on('interactionCreate', interaction => {
 	if (!interaction.isCommand()) return;
-	console.log(interaction);
+	const commandName = interaction.commandName;
+	if(!fs.existsSync(`./interactions/${commandName.toLowerCase()}.js`)) return;
+	try {
+		require(`./interactions/${commandName.toLowerCase()}.js`)(interaction);
+	} catch (e) {
+		logger.error(e);
+	}
 });
 
 client.on("messageCreate", (msg) => {
 	if(msg.author !== client.user) {
-	console.log(msg);
 	  if(msg.content.toUpperCase().startsWith(prefix.toUpperCase())) {
 		  if(msg.content.toUpperCase() === `${prefix.toUpperCase()}PING`){
 			const pingA = Date.now() - msg.createdTimestamp;
@@ -1079,7 +1085,7 @@ client.on("guildDelete", (guild) => {
 
 process.on("exit",  () => {
   logger.log("Shutting down");
-	client.destroy();
+  client.destroy();
 });
 
 function start(){

@@ -99,6 +99,11 @@ const commands = [
 		.setDMPermission(true)
 		.setDefaultMemberPermissions(undefined)
 		.addStringOption(option => option.setName('topic').setDescription('Specific help topic')),
+	new SlashCommandBuilder()
+		.setName('ping')
+		.setDescription('Ping.......Pong')
+		.setDMPermission(true)
+		.setDefaultMemberPermissions(undefined),
 ]
 	.map(command => command.toJSON());
 
