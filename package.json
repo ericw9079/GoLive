@@ -12,8 +12,8 @@
     "mysql2": "^2.3.3"
   },
   "scripts": {
-	deployCommands: "node deploy-commands.js",
-	start: "node bot.js"
+	"deployCommands": "node deploy-commands.js",
+	"start": "node bot.js"
   },
   "keywords": [],
   "author": "ericw9079",
