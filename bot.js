@@ -9,10 +9,9 @@ const discordManager = require("./discordManager.js");
 const cacheManager = require("./cacheManager.js");
 const help = require("./help");
 const statusUpdater = require('./statusUpdater.js');
+const { lookupChannel, checkPerms, PermissionFlags, testMessage } = require('./util.js');
 
 // Env Variables
-const clientId = process.env.TWITCH_ID;
-const clientSecret = process.env.TWITCH_SECRET;
 const prefix = process.env.DISCORD_PREFIX;
 const botId = process.env.DISCORD_CLIENT;
 const botPerms = process.env.DISCORD_PERMS;
@@ -25,17 +24,13 @@ const statusConfig = {
 // End Env Variables
 
 // APIs
-const twitch = axios.create();
+const twitch = require('./api.js');
 const statusSite = axios.create(statusConfig);
 // End APIs
 
 // Constants
 const OFFLINE = "OFFLINE";
 const ONLINE = "ONLINE";
-
-const CANT_SEND = 0;
-const CANT_EMBED = -1;
-const CAN_SEND = 1;
 
 const DELAY = 60000; // Time between Twitch fetches, in milliseconds
 const COOLDOWN = 300000; // cooldown time between state changes (5 min)
@@ -46,53 +41,12 @@ let notifications = [];
 let interval;
 let retryCount = 1;
 let cooldowns = new Set();
-let errMsg = "";
 
 statusUpdater.init(statusSite);
 
-function checkPerms(channel,guild){
-  const perms = guild.members.me.permissionsIn(channel);
-    if(perms.has([PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks])){
-      return CAN_SEND;
-    }
-    if(perms.has([PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages])){
-      return CANT_EMBED;
-    }
-    return CANT_SEND;
-}
-
-async function getToken(){
-	const res = await twitch.post(`https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`);
-	twitch.defaults.headers.common['Authorization'] = "Bearer "+res.data.access_token;
-}
-
-async function lookupChannel(channelName){
-  try{
-		await twitch.head('https://id.twitch.tv/oauth2/validate');
-	}
-	catch(error){
-		await getToken();
-	}
-  const resp = await twitch.get(`https://api.twitch.tv/helix/search/channels?query=${channelName}&first=1`);
-  if(resp.data.data[0] && resp.data.data[0].broadcaster_login == channelName.toLowerCase()){
-    const bl = await db.get("bl");
-    if(bl.includes(resp.data.data[0].id)){
-      throw new Error("Bl");
-    }
-    return resp.data.data[0];
-  }
-  return false;
-}
-
 async function checkLive(uid){
   const name = await cacheManager.name(uid);
-  try{
-	await twitch.head('https://id.twitch.tv/oauth2/validate');
-  }
-  catch(error){
-	await getToken();
-  }
-  const resp = await twitch.get(`https://api.twitch.tv/helix/streams?user_id=${uid}&first=1`);
+  const resp = await twitch.get(`streams?user_id=${uid}&first=1`);
   let oldStatus = await db.get(`Live:${uid}`);
   if(oldStatus == null || oldStatus == ""){
     oldStatus = OFFLINE;
@@ -163,7 +117,7 @@ async function sendMessage(uid,game,title,name,startedAt=""){
             }
             message = message.replace("{url}",`https://twitch.tv/${channel}`).replace("{game}",game).replace("{channel}",name.replace("_","\\_")).replace("{title}",title).replace("{everyone}","@everyone");
             const perm = checkPerms(discordChannel.id,discordChannel.guild);
-            if(perm !== CANT_SEND){
+            if(perm !== PermissionFlags.CANT_SEND){
 			  let messages = await discordChannel.messages.fetch();
 			  let mentions = message.match(/<?@[&!]?(?:\d+>|here|everyone)/i);
 			  if(mentions == null) {
@@ -188,29 +142,6 @@ async function sendMessage(uid,game,title,name,startedAt=""){
       logger.error(`Not in the guild for ${channel}`);
       console.error(e);
     }
-  }
-}
-
-async function testMessage(twitchChannel,channel){
-  if(channel && channel.type === ChannelType.GuildText){
-    let message = await discordManager.getMessage(await cacheManager.uid(twitchChannel),channel.guild.id);
-    if(!message){
-      message = "{channel} went LIVE with {game}! Check them out at {url}";
-    }
-    message = message.replace("{url}",`https://twitch.tv/${twitchChannel}`).replace("{game}","Test Game").replace("{channel}",twitchChannel.replace("_","\\_")).replace("{title}","Test Message").replace("{everyone}","@everyone");
-    const postChannel = await discordManager.getChannel(await cacheManager.uid(twitchChannel),channel.guild.id);
-    const perm = checkPerms(postChannel,channel.guild);
-    let permResult = "";
-    if(perm === CAN_SEND){
-      permResult = ":white_check_mark: Can Send Messages\n";
-    }
-    else if(perm === CANT_EMBED){
-      permResult = ":warning: Links won't be embeded\n";
-    }
-    else if(perm === CANT_SEND){
-      permResult = ":x: Can't send Messages\n"
-    }
-    channel.send(permResult+message,{disableMentions:"all"});
   }
 }
 
@@ -285,15 +216,15 @@ function parseDiscordCommand(msg) {
 			if(channelobj === null) {
 			  channelobj = msg.channel;
 			}
-			if(channelobj !== undefined && channelobj !== null && channelobj.isText()) {
+			if(channelobj !== undefined && channelobj !== null && channelobj.isTextBased()) {
 			  const channelid = channelobj.id;
 			  const perm = checkPerms(channelid,channelobj.guild)
-			  if(perm !== CANT_SEND){
+			  if(perm !== PermissionFlags.CANT_SEND){
 				db.addWildDiscord(`${msg.guild.id}`,`${channelid}`).then((result)=>{
-				  if(result && perm == CAN_SEND){
+				  if(result && perm == PermissionFlags.CAN_SEND){
 					msg.channel.send(`:white_check_mark: Notifications will be sent to <#${channelid}> when anyone (*) goes live`);
 				  }
-				  else if(result && perm == CANT_EMBED){
+				  else if(result && perm == PermissionFlags.CANT_EMBED){
 					msg.channel.send(`:warning: Notifications will be sent to <#${channelid}> when anyone (*) goes live but links won't be embeded`);
 				  }
 				}).catch((e) => {
@@ -337,16 +268,16 @@ function parseDiscordCommand(msg) {
 			if(channelobj === null) {
 			  channelobj = msg.channel;
 			}
-			if(channelobj !== undefined && channelobj !== null && channelobj.isText()) {
+			if(channelobj !== undefined && channelobj !== null && channelobj.isTextBased()) {
 			  const channelid = channelobj.id;
 			  const perm = checkPerms(channelid,channelobj.guild)
-			  if(perm !== CANT_SEND){
+			  if(perm !== PermissionFlags.CANT_SEND){
 				discordManager.addChannel(uid,msg.guild.id,channelid).then((result)=>{
-				  if(result && perm == CAN_SEND){
+				  if(result && perm == PermissionFlags.CAN_SEND){
 					msg.channel.send(`:white_check_mark: Notifications will be sent to <#${channelid}> when ${args[0].toLowerCase()} goes live`);
 					cacheManager.update(uid,args[0]);
 				  }
-				  else if(result && perm == CANT_EMBED){
+				  else if(result && perm == PermissionFlags.CANT_EMBED){
 						msg.channel.send(`:warning: Notifications will be sent to <#${channelid}> when ${args[0].toLowerCase()} goes live but links won't be embeded`);
 						cacheManager.update(uid,args[0]);
 				  }
@@ -456,6 +387,7 @@ function parseDiscordCommand(msg) {
 	  });
 	}).catch((e) => {
 		msg.channel.send(":x: An Error occured while ignoring the channel.");
+		if (e.message !== "Bl") logger.error(e);
 	});
   }
   else if (cmd.startsWith("UNIGNORE")) {
@@ -524,7 +456,7 @@ function parseDiscordCommand(msg) {
 		  });
         }
         else{
-          discordManager.removeMessage(uid,msg.guild.id,message.trim()).then((result)=>{
+          discordManager.removeMessage(uid,msg.guild.id).then((result)=>{
             if(result){
               discordManager.getMessage(uid,msg.guild.id).then((message)=>{
                 if(message){
@@ -577,16 +509,16 @@ function parseDiscordCommand(msg) {
     }
     else {
       const channelobj = msg.guild.channels.resolve(id);
-      if(channelobj !== undefined && channelobj.isText()) {
+      if(channelobj !== undefined && channelobj.isTextBased()) {
         const channelid = channelobj.id;
         const guildid = channelobj.guild.id;
         const perm = checkPerms(channelid,channelobj.guild);
-        if(perm !== CANT_SEND){
+        if(perm !== PermissionFlags.CANT_SEND){
           db.addDefaultChannel(`${guildid}`,`${channelid}`).then(() => {
-            if(perm == CAN_SEND){
+            if(perm == PermissionFlags.CAN_SEND){
               msg.channel.send(`:white_check_mark: Default channel set to <#${channelid}>`);
             }
-            else if(result && perm == CANT_EMBED){
+            else if(result && perm == PermissionFlags.CANT_EMBED){
               msg.channel.send(`:warning: Default channel set to <#${channelid}> but links won't be embeded`);
             }
           }).catch((e) => {
@@ -698,12 +630,12 @@ function parseDiscordCommand(msg) {
         return;
     }
     cacheManager.uid(args[0].toLowerCase()).then((uid) => {
-      discordManager.getChannel(uid,msg.guild.id).then(channel => {
+      discordManager.getChannel(uid,msg.guild.id).then(async (channel) => {
         if(channel === undefined){
           msg.channel.send(":x: This Channel is not linked with this server.");
           return;
         }
-        testMessage(args[0].toLowerCase(),msg.channel);
+        msg.channel.send(await testMessage(args[0].toLowerCase(),msg.channel), { disableMentions: "all" });
       }).catch((e) => {
 		msg.channel.send(":x: Error getting test message.");
 		logger.error(e);
@@ -978,15 +910,6 @@ client.on("ready", () => {
 	  getLive();
 	}
 
-  if(errMsg != "") {
-    client.users.fetch(process.env.OWNER_ID).then((user) => {
-      user.createDM().then((channel) => {
-        channel.send(`**ERROR:** ${errMsg}`);
-        errMsg = "";
-      }).catch((e)=>{logger.error(e)});
-    }).catch((e)=>{logger.error(e)});
-  }
-
 });
 
 client.once("ready", async () => {
@@ -1008,7 +931,6 @@ client.once("ready", async () => {
 client.on("disconnect", (event) => {
 	if(event.code !== 1000) {
 	  logger.log("Discord client disconnected with reason: " + event.reason + " (" + event.code + ").");
-    errMsg = "Discord client disconnected with reason: " + event.reason + " (" + event.code + ").";
 
 	  if(event.code === 4004) {
 		  logger.log("Please double-check the configured token and try again.");
@@ -1024,7 +946,6 @@ client.on("disconnect", (event) => {
 
 client.on("error", (err) => {
 	logger.log(`Discord client error '${err.code}' (${err.message}). Attempting to reconnect in 6s...`);
-  errMsg = `Discord client error '${err.code}' (${err.message}).`;
 	clearInterval(interval);
 	client.destroy();
 	setTimeout(() => { client.login(); }, 6000);
@@ -1033,9 +954,9 @@ client.on("error", (err) => {
 client.on('interactionCreate', async (interaction) => {
 	if (!interaction.isCommand()) return;
 	const commandName = interaction.commandName;
-	if(!fs.existsSync(`./interactions/${commandName.toLowerCase()}.js`)) return;
+	if(!fs.existsSync(`./commands/${commandName.toLowerCase()}.js`)) return;
 	try {
-		await require(`./interactions/${commandName.toLowerCase()}.js`)(interaction);
+		await require(`./commands/${commandName.toLowerCase()}.js`)(interaction);
 	} catch (e) {
 		logger.error(e);
 	}
@@ -1089,7 +1010,6 @@ process.on("exit",  () => {
 });
 
 function start(){
-	twitch.defaults.headers.common['Client-ID'] = clientId;
 	getLive();
 }
 

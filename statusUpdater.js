@@ -44,7 +44,7 @@ const remove = async (uid, retryCount) => {
 	}
 	catch(e) {
 		if(e.response && e.response.status === 500 || e.request) {
-			requests[`id${uid}`] = setTimeout(remove,DELAY*retryCount,uid,newStatus,name,++retryCount); // Schedule the request for retry
+			requests[`id${uid}`] = setTimeout(remove,DELAY*retryCount,uid,name,++retryCount); // Schedule the request for retry
 		}
 	}
 }

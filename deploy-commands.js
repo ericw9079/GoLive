@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { REST, Routes, PermissionsBitField } = require('discord.js');
+const { REST, Routes, PermissionsBitField, SlashCommandBuilder, ChannelType } = require('discord.js');
 require('dotenv').config();
 
 const clientId = process.env.DISCORD_CLIENT;
@@ -15,14 +14,14 @@ const commands = [
 			subcommand
 				.setName('channel')
 				.setDescription('Add a specific twitch channel')
-				.addStringOption(option => option.setName('twitchchannel').setDescription('Twitch channel to start receiving notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
-				.addChannelOption(option => option.setName('discordchannel').setDescription('Discord channel to send notifications in'))
+				.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to start receiving notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
+				.addChannelOption(option => option.setName('discord_channel').setDescription('Discord channel to send notifications in').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
 		)
 		.addSubcommand(subcommand => 
 			subcommand
 				.setName('all')
 				.setDescription('Receive notifications for any channel GoLive is monitoring')
-				.addChannelOption(option => option.setName('discordchannel').setDescription('Discord channel to send notifications in'))
+				.addChannelOption(option => option.setName('discord_channel').setDescription('Discord channel to send notifications in').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
 		),
 	new SlashCommandBuilder()
 		.setName('remove')
@@ -33,7 +32,7 @@ const commands = [
 			subcommand
 				.setName('channel')
 				.setDescription('Remove a specific twitch channel')
-				.addStringOption(option => option.setName('twitchchannel').setDescription('Twitch channel to stop receiving notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
+				.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to stop receiving notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
 		)
 		.addSubcommand(subcommand => 
 			subcommand
@@ -45,20 +44,31 @@ const commands = [
 		.setDescription('Prevent notifications from being received for a specific channel')
 		.setDMPermission(false)
 		.setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
-		.addStringOption(option => option.setName('twitchchannel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25)),
+		.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25)),
 	new SlashCommandBuilder()
 		.setName('unignore')
 		.setDescription('Allow notifications to be received for a specific channel')
 		.setDMPermission(false)
 		.setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
-		.addStringOption(option => option.setName('twitchchannel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25)),
+		.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25)),
 	new SlashCommandBuilder()
 		.setName('message')
-		.setDescription('Set the notification message for a channel')
+		.setDescription('Configure a channels message')
 		.setDMPermission(false)
 		.setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
-		.addStringOption(option => option.setName('twitchchannel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
-		.addStringOption(option => option.setName('message').setDescription('Notification Message. Leave empty to clear')),
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('set')
+				.setDescription('Set the notification message for a channel')
+				.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
+				.addStringOption(option => option.setName('message').setDescription('Notification Message. Ommit to reset'))
+		)
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('test')
+				.setDescription('Test the notification message for a channel')
+				.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
+		),
 	new SlashCommandBuilder()
 		.setName('default')
 		.setDescription('Configure a server default')
@@ -68,15 +78,13 @@ const commands = [
 			subcommand
 				.setName('channel')
 				.setDescription('Set the default channel for notifications to be sent to if no channel is specified')
-				.addChannelOption(option => option.setName('discordchannel').setDescription('Discord channel to default to. Leave empty to clear')
-			)
+				.addChannelOption(option => option.setName('discord_channel').setDescription('Discord channel to default to. Ommit to clear').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
 		)
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('message')
 				.setDescription('Set the default server notification message for channels without their own message')
-				.addStringOption(option => option.setName('message').setDescription('Default Notification Message. Leave empty to clear')
-			)
+				.addStringOption(option => option.setName('message').setDescription('Default Notification Message. Ommit to clear'))
 		),
 	new SlashCommandBuilder()
 		.setName('list')
@@ -98,7 +106,7 @@ const commands = [
 		.setDescription('Get Help')
 		.setDMPermission(true)
 		.setDefaultMemberPermissions(undefined)
-		.addStringOption(option => option.setName('topic').setDescription('Specific help topic').addChoices({ name: 'Message', value: 'message'})),
+		.addStringOption(option => option.setName('topic').setDescription('Specific help topic').addChoices({ name: 'Message', value: 'message'}, { name: 'Ignore/Unignore', value: 'ingore'})),
 	new SlashCommandBuilder()
 		.setName('ping')
 		.setDescription('Ping.......Pong')
