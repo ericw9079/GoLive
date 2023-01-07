@@ -1,6 +1,6 @@
 const db = require('./sqlDatabase.js');
 const { PermissionsBitField, ChannelType } = require('discord.js');
-const twitch = require('./api.js');
+const twitch = require('@ericw9079/twitch-api');
 const discordManager = require('./discordManager.js');
 const cacheManager = require('./cacheManager.js');
 

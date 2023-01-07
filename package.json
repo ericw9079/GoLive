@@ -1,10 +1,11 @@
 {
   "name": "golive",
-  "version": "1.0.0",
+  "version": "2.0.1",
   "description": "Reliable discord notifications when a streamer goes live on twitch",
   "main": "bot.js",
   "dependencies": {
     "@ericw9079/logger": "^2.0.3",
+    "@ericw9079/twitch-api": "^1.0.0",
     "axios": "^0.21.1",
     "discord-api-types": "^0.37.23",
     "discord.js": "^14.6.0",
