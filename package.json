@@ -14,7 +14,7 @@
   },
   "scripts": {
     "deployCommands": "node deploy-commands.js",
-    "start": "node bot.js"
+    "start": "node ."
   },
   "keywords": [],
   "author": "ericw9079",
