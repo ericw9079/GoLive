@@ -7,485 +7,287 @@ const pool = mysql.createPool({
   password: "bot",
   database: "golive",
   supportBigNumbers: true
-});
+}).promise();
 
 // BEGIN DISCORD
 
-function getDiscord(uid) {
-	if(uid == "*") {
+const getDiscord = async (uid) => {
+	if (uid == "*") {
 		// Wildcard (type="all")
-		return new Promise((resolve,reject) => {
-			pool.query(`SELECT * FROM Discord WHERE type="all"`, function (err, allResults) {
-				if (err) {
-					return reject(err);
-				}
-				resolve(allResults);
-			});
-		});
+		const [wildcards] = await pool.execute("SELECT * FROM Discord WHERE type = 'all'");
+		return wildcards;
 	}
-	else if(typeof uid == "string" && uid.startsWith("^")) {
+	else if (typeof uid == "string" && uid.startsWith("^")) {
 		// Ignored channel
 		uid = uid.substr(1);
-		return new Promise((resolve,reject) => {
-			pool.query(`SELECT * FROM Discord WHERE uid=${uid} AND type="ignore"`, function (err, ignoredResults) {
-				if (err) {
-					return reject(err);
-				}
-				resolve(ignoredResults);
-			});
-		});
+		const [ignored] = await pool.execute("SELECT * FROM Discord WHERE uid = ? AND type = 'ignore'", [uid]);
+		return ignored;
 	}
 	else {
-		return new Promise((resolve,reject) => {
-			pool.getConnection(function(err, con) {
-				if (err) return reject(err);
-				con.query(`SELECT * FROM Discord WHERE type="normal" AND uid=${uid}`, function (err, includeResults) {
-					if (err) {
-						con.release();
-						return reject(err);
-					}
-					con.query(`SELECT * FROM Discord WHERE type="all"`, function (err, allResults) {
-						if (err) {
-							con.release();
-							return reject(err);
-						}
-						allResults.forEach((el) => {
-							if(!includeResults.some(e => e.guild === el.guild)){
-								// Merge the results
-								includeResults.push(el);
-							}
-						});
-						con.query(`SELECT guild FROM Discord WHERE uid=${uid} AND type="ignore"`, function (err, excludeResults) {
-							con.release();
-							if (err) return reject(err);
-							result = includeResults.filter((el) => {
-								// Exclude the ignore channels
-								return !excludeResults.some(e => e.guild == el.guild);
-							});
-							resolve(result);
-						});
-					});
-				});
+		const con = await pool.getConnection();
+		let results;
+		try {
+			const [includes] = await con.execute("SELECT * FROM Discord WHERE type = 'normal' AND uid = ?", [uid]);
+			const [allResults] = await con.execute("SELECT * FROM Discord WHERE type = 'all'");
+			allResults.forEach((el) => {
+				if (!includes.some(e => e.guild === el.guild)){
+					// Merge the results
+					includes.push(el);
+				}
 			});
-		});
+			const [excludes] = await con.execute("SELECT guild FROM Discord WHERE uid = ? AND type = 'ignore'", [uid]);
+			results = includes.filter((el) => {
+				// Exclude the ignore channels
+				return !excludes.some(e => e.guild == el.guild);
+			});
+		} finally {
+			con.release();
+		}
+		return results;
 	}
+};
+
+const addDiscord = async (uid, guild, channel) => {
+	const con = await pool.getConnection();
+	try {
+		const keys = await con.execute('SELECT _key FROM Discord WHERE guild = ? AND uid = ?', [guild, uid]);
+		if (!keys || keys.length == 0) {
+			await con.execute("INSERT INTO Discord (uid,guild,channel,type) VALUES (?,?,?,'normal')", [uid, guild, channel]);
+		}
+		else {
+			await con.execute("UPDATE Discord SET uid = ?, guild = ?, channel = ?, type = 'normal' WHERE _key = ?", [uid, guild, keys[0]._key]);
+		}
+	} finally {
+		con.release();
+	}
+	return true;
+};
+
+const removeDiscord = async (uid, guild) => {
+		const [result] = await pool.execute("DELETE FROM Discord WHERE uid = ? AND guild = ? AND (type='normal' OR type='ignore')", [uid, guild]);
+		return result;
+};
+
+const ignoreDiscord = async (uid, guild) => {
+	const con = await pool.getConnection();
+	try {
+		const [keys] = await con.execute('SELECT _key FROM Discord WHERE guild = ? AND uid = ?', [guild, uid]);
+		if(!keys || keys.length == 0) {
+			await con.execute("INSERT INTO Discord (uid,guild,type) VALUES (?,?,'ignore')");
+		}
+		else {
+			await con.execute("UPDATE Discord SET uid = ?, guild = ?,type = 'ignore' WHERE _key = ?", [uid, guild, keys[0]._key]);
+		}
+	} finally {
+		con.release();
+	}
+	return true;
+};
+
+const addWildDiscord = async (guild, channel) => {
+	const con = await pool.getConnection();
+	try {
+		const [keys] = await con.execute('SELECT _key FROM Discord WHERE guild = ? AND uid IS NULL', [guild]);
+		if(!keys || keys.length == 0) {
+			await con.execute("INSERT INTO Discord (uid,guild,channel,type) VALUES (NULL,?,?,'all')", [guild, channel]);
+		}
+		else {
+			await con.execute("UPDATE Discord SET uid = NULL, guild = ?, channel = ?, type = 'all' WHERE _key = ?", [guild, channel, keys[0]._key]);
+		}
+	} finally {
+		con.release();
+	}
+	return true;
+};
+
+const removeWildDiscord = async (guild) => {
+	const [results] = await pool.execute("DELETE FROM Discord WHERE uid IS NULL AND guild = ? AND type = 'all'", [guild]);
+	return results.affectedRows > 0;
 }
 
-function addDiscord(uid, guild, channel) {
-	return new Promise((resolve,reject) => {
-		pool.getConnection(function(err, con) {
-			if (err) return reject(err);
-			con.query(`SELECT _key FROM Discord WHERE guild=${guild} AND uid=${uid}`, function (err, keys) {
-				if (err) {
-					con.release();
-					return reject(err);
-				}
-				if(!keys || keys.length == 0) {
-					con.query(`INSERT INTO Discord (uid,guild,channel,type) VALUES (${uid},${guild},${channel},"normal")`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-				else {
-					con.query(`UPDATE Discord SET uid=${uid},guild=${guild},channel=${channel},type="normal" WHERE _key=${keys[0]._key}`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-			});
-		});
-	});
-}
-
-function removeDiscord(uid, guild) {
-	return new Promise((resolve,reject) => {
-		pool.query(`DELETE FROM Discord WHERE uid=${uid} AND guild=${guild} AND (type="normal" OR type="ignore")`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
-
-function ignoreDiscord(uid, guild) {
-	return new Promise((resolve,reject) => {
-		pool.getConnection(function(err, con) {
-			if (err) return reject(err);
-			con.query(`SELECT _key FROM Discord WHERE guild=${guild} AND uid=${uid}`, function (err, keys) {
-				if (err) {
-					con.release();
-					return reject(err);
-				}
-				if(!keys || keys.length == 0) {
-					con.query(`INSERT INTO Discord (uid,guild,type) VALUES (${uid},${guild},"ignore")`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-				else {
-					con.query(`UPDATE Discord SET uid=${uid},guild=${guild},type="ignore" WHERE _key=${keys[0]._key}`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-			});
-		});
-	});
-}
-
-function addWildDiscord(guild, channel) {
-	return new Promise((resolve,reject) => {
-		pool.getConnection(function(err, con) {
-			if (err) return reject(err);
-			con.query(`SELECT _key FROM Discord WHERE guild=${guild} AND uid IS NULL`, function (err, keys) {
-				if (err) {
-					con.release();
-					return reject(err);
-				}
-				if(!keys || keys.length == 0) {
-					con.query(`INSERT INTO Discord (uid,guild,channel,type) VALUES (NULL,${guild},${channel},"all")`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-				else {
-					con.query(`UPDATE Discord SET uid=NULL,guild=${guild},channel=${channel},type="all" WHERE _key=${keys[0]._key}`, function (err, excludeResults) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-			});
-		});
-	});
-}
-
-function removeWildDiscord(guild) {
-	return new Promise((resolve,reject) => {
-		pool.query(`DELETE FROM Discord WHERE uid IS NULL AND guild=${guild} AND type="all"`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result.affectedRows > 0);
-		});
-	});
-}
-
-function listDiscords() {
-	return new Promise((resolve,reject) => {
-		pool.query(`SELECT DISTINCT uid,type FROM Discord`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const listDiscords = async () => {
+	const [results] = await pool.execute('SELECT DISTINCT uid, type FROM Discord');
+	return results;
+};
 
 // END DISCORD
 // BEGIN MESSAGE
 
-function addMessage(uid, guild, message) {
-	if(message) {
-		message.replaceAll('"','\"');
+const addMessage = async (uid, guild, message) => {
+	const con = await pool.getConnection();
+	try {
+		const [keys] = await con.execute('SELECT _key FROM Message WHERE guild = ? AND uid = ?', [guild, uid]);
+		if(!keys || keys.length == 0) {
+			await con.execute('INSERT INTO Message (uid,guild,message) VALUES (?,?,?)', [uid, guild, message]);
+		}
+		else {
+			await con.execute('UPDATE Message SET uid = ?, guild = ?, message = ? WHERE _key = ?', [uid, guild, message, keys[0]._key]);
+		}
+	} finally {
+		con.release();
 	}
-	return new Promise((resolve,reject) => {
-		pool.getConnection(function(err, con) {
-			if (err) return reject(err);
-			con.query(`SELECT _key FROM Message WHERE guild=${guild} AND uid=${uid}`, function (err, keys) {
-				if (err) {
-					con.release();
-					return reject(err);
-				}
-				if(!keys || keys.length == 0) {
-					con.query(`INSERT INTO Message (uid,guild,message) VALUES (${uid},${guild},"${message}")`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-				else {
-					con.query(`UPDATE Message SET uid=${uid},guild=${guild},message="${message}" WHERE _key=${keys[0]._key}`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-			});
-		});
-	});
-}
+	return true;
+};
 
-function removeMessage(uid, guild) {
-	return new Promise((resolve,reject) => {
-		pool.query(`DELETE FROM Message WHERE uid=${uid} AND guild=${guild}`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const removeMessage = async (uid, guild) => {
+	const [results] = await pool.execute('DELETE FROM Message WHERE uid = ? AND guild = ?', [uid, guild]);
+	return results.affectedRows > 0;
+};
 
-function getMessage(uid) {
-	return new Promise((resolve,reject) => {
-		pool.query(`SELECT guild,message FROM Message WHERE uid=${uid}`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const getMessage = async (uid) => {
+	const [results] = await pool.execute('SELECT guild, message FROM Message WHERE uid = ?', [uid]);
+	return results;
+};
 
 // END MESSAGE
 // BEGIN DEFAULT MESSAGE
 
-function addDefaultMessage(guild, message) {
-	if(message) {
-		message = message.replaceAll('"','\"');
+const addDefaultMessage = async (guild, message) => {
+	const con = await pool.getConnection();
+	try {
+		const [keys] = await con.execute('SELECT guild FROM DefaultMessage WHERE guild = ?', [guild]);
+		if(!keys || keys.length == 0) {
+			await con.execute('INSERT INTO DefaultMessage (guild,message) VALUES (?,?)', [guild, message]);
+		}
+		else {
+			await con.execute('UPDATE DefaultMessage SET guild = ?, message = ? WHERE guild = ?', [guild, message, keys[0].guild]);
+		}
+	} finally {
+		con.release();
 	}
-	return new Promise((resolve,reject) => {
-		pool.getConnection(function(err, con) {
-			if (err) return reject(err);
-			con.query(`SELECT guild FROM DefaultMessage WHERE guild=${guild}`, function (err, keys) {
-				if (err) {
-					con.release();
-					return reject(err);
-				}
-				if(!keys || keys.length == 0) {
-					con.query(`INSERT INTO DefaultMessage (guild,message) VALUES (${guild},"${message}")`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-				else {
-					con.query(`UPDATE DefaultMessage SET guild=${guild},message="${message}" WHERE guild=${keys[0].guild}`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-			});
-		});
-	});
-}
+	return true;
+};
 
-function removeDefaultMessage(guild) {
-	return new Promise((resolve,reject) => {
-		pool.query(`DELETE FROM DefaultMessage WHERE guild=${guild}`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const removeDefaultMessage = async (guild) => {
+	const [results] = await pool.execute('DELETE FROM DefaultMessage WHERE guild = ?', [guild]);
+	return results.affectedRows > 0;
+};
 
-function getDefaultMessage(guild) {
-	return new Promise((resolve,reject) => {
-		pool.query(`SELECT message FROM DefaultMessage WHERE guild=${guild}`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const getDefaultMessage = async (guild) => {
+	const [results] = await pool.execute('SELECT message FROM DefaultMessage WHERE guild = ?', [guild]);
+	return results;
+};
 
 // END DEFAULT MESSAGE
 // BEGIN DEFAULT CHANNEL
 
-function addDefaultChannel(guild, channel) {
-	return new Promise((resolve,reject) => {
-		pool.getConnection(function(err, con) {
-			if (err) return reject(err);
-			con.query(`SELECT guild FROM DefaultChannel WHERE guild=${guild}`, function (err, keys) {
-				if (err) {
-					con.release();
-					return reject(err);
-				}
-				if(!keys || keys.length == 0) {
-					con.query(`INSERT INTO DefaultChannel (guild,channel) VALUES (${guild},${channel})`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-				else {
-					con.query(`UPDATE DefaultChannel SET guild=${guild},channel=${channel} WHERE guild=${keys[0].guild}`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-			});
-		});
-	});
-}
+const addDefaultChannel = async (guild, channel) => {
+	const con = await pool.getConnection();
+	try {
+		const [keys] = await con.execute('SELECT guild FROM DefaultChannel WHERE guild = ?', [guild]);
+		if(!keys || keys.length == 0) {
+			await con.execute('INSERT INTO DefaultChannel (guild,channel) VALUES (?,?)', [guild, channel]);
+		}
+		else {
+			await con.execute('UPDATE DefaultChannel SET guild = ?, channel = ? WHERE guild = ?', [guild, channel, keys[0].guild]);
+		}
+	} finally {
+		con.release();
+	}
+	return true;
+};
 
-function removeDefaultChannel(guild) {
-	return new Promise((resolve,reject) => {
-		pool.query(`DELETE FROM DefaultChannel WHERE guild=${guild}`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const removeDefaultChannel = async (guild) => {
+	const [results] = await pool.execute('DELETE FROM DefaultChannel WHERE guild = ?', [guild]);
+	return results.affectedRows > 0;
+};
 
-function getDefaultChannel(guild) {
-	return new Promise((resolve,reject) => {
-		pool.query(`SELECT channel FROM DefaultChannel WHERE guild=${guild}`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const getDefaultChannel = async (guild) => {
+	const [results] = await pool.execute('SELECT channel FROM DefaultChannel WHERE guild = ?', [guild]);
+	return results;
+};
 
 // END DEFAULT CHANNEL
 // BEGIN LIVE
 
-function setLive(uid, state) {
-	return new Promise((resolve,reject) => {
-		if(state != "ONLINE" && state != "OFFLINE") {
-			reject("Invalid State");
+const setLive = async (uid, state) => {
+	if(state != "ONLINE" && state != "OFFLINE") {
+		throw new Error("Invalid State");
+	}
+	const con = await pool.getConnection();
+	try {
+		const [keys] = await con.execute('SELECT uid FROM Live WHERE uid = ?', [uid]);
+		if(!keys || keys.length == 0) {
+			await con.execute('INSERT INTO Live (uid,status) VALUES (?,?)', [uid, state]);
 		}
-		pool.getConnection(function(err, con) {
-			if (err) return reject(err);
-			con.query(`SELECT uid FROM Live WHERE uid=${uid}`, function (err, keys) {
-				if (err) {
-					con.release();
-					return reject(err);
-				}
-				if(!keys || keys.length == 0) {
-					con.query(`INSERT INTO Live (uid,status) VALUES (${uid},"${state}")`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-				else {
-					con.query(`UPDATE Live SET uid=${uid},status="${state}" WHERE uid=${keys[0].uid}`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-			});
-		});
-	});
-}
+		else {
+			await con.execute('UPDATE Live SET uid = ?,status = ? WHERE uid = ?', [uid, state, keys[0].uid]);
+		}
+	} finally {
+		con.release();
+	}
+	return true;
+};
 
-function removeLive(uid) {
-	return new Promise((resolve,reject) => {
-		pool.query(`DELETE FROM Live WHERE uid=${uid}`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const removeLive = async (uid) => {
+	const [results] = await pool.execute('DELETE FROM Live WHERE uid = ?', [uid]);
+	return results.affectedRows > 0;
+};
 
-function getLive(uid) {
-	return new Promise((resolve,reject) => {
-		pool.query(`SELECT status FROM Live WHERE uid=${uid}`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const getLive = async (uid) => {
+	const [results] = await pool.execute('SELECT status FROM Live WHERE uid = ?', [uid]);
+	return results;
+};
 
 // END LIVE
 // BEGIN CACHE
 
-function setCache(uid, username) {
-	return new Promise((resolve,reject) => {
-		pool.getConnection(function(err, con) {
-			if (err) return reject(err);
-			con.query(`SELECT uid FROM cache WHERE uid=${uid}`, function (err, keys) {
-				if (err) {
-					con.release();
-					return reject(err);
-				}
-				if(!keys || keys.length == 0) {
-					con.query(`INSERT INTO cache (uid,username) VALUES (${uid},"${username}")`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-				else {
-					con.query(`UPDATE cache SET uid=${uid},username="${username}" WHERE uid=${keys[0].uid}`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-			});
-		});
-	});
-}
+const setCache = async (uid, username) => {
+	const con = await pool.getConnection();
+	try {
+		const [keys] = await con.execute('SELECT uid FROM cache WHERE uid = ?', [uid]);
+		if(!keys || keys.length == 0) {
+			await con.execute('INSERT INTO cache (uid,username) VALUES (?,?)', [uid, username]);
+		}
+		else {
+			con.execute('UPDATE cache SET uid = ?, username = ? WHERE uid = ?', [uid, username, keys[0].uid]);
+		}
+	} finally {
+		con.release();
+	}
+	return true;
+};
 
-function removeCache(uid) {
-	return new Promise((resolve,reject) => {
-		pool.query(`DELETE FROM cache WHERE uid=${uid}`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const removeCache = async (uid) => {
+	const [results] = await pool.execute('DELETE FROM cache WHERE uid = ?', [uid]);
+	return results.affectedRows > 0;
+};
 
-function getCache() {
-	return new Promise((resolve,reject) => {
-		pool.query(`SELECT * FROM cache`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const getCache = async () => {
+	const [results] = await pool.execute('SELECT * FROM cache');
+	return results;
+};
 
 // END CACHE
 // BEGIN BL
 
-function addBL(uid) {
-	return new Promise((resolve,reject) => {
-		pool.getConnection(function(err, con) {
-			if (err) return reject(err);
-			con.query(`SELECT uid FROM bl WHERE uid=${uid}`, function (err, keys) {
-				if (err) {
-					con.release();
-					return reject(err);
-				}
-				if(!keys || keys.length == 0) {
-					con.query(`INSERT INTO bl (uid) VALUES (${uid})`, function (err, results) {
-						con.release();
-						if (err) return reject(err);
-						resolve(true);
-					});
-				}
-				else {
-					con.release();
-					resolve(true);
-				}
-			});
-		});
-	});
-}
+const addBL = async (uid) => {
+	const con = await pool.getConnection();
+	try {
+		const [keys] = await con.execute('SELECT uid FROM bl WHERE uid = ?', [uid]);
+		if(!keys || keys.length == 0) {
+			await con.execute('INSERT INTO bl (uid) VALUES (?)', [uid]);
+		}
+	} finally {
+		con.release();
+	}
+	return true;
+};
 
-function removeBL(uid) {
-	return new Promise((resolve,reject) => {
-		pool.query(`DELETE FROM bl WHERE uid=${uid}`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const removeBL = async (uid) => {
+	const [results] = await pool.execute('DELETE FROM bl WHERE uid = ?', [uid]);
+	return results.affectedRows > 0;
+};
 
-function getBL() {
-	return new Promise((resolve,reject) => {
-		pool.query(`SELECT * FROM bl`, function (err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
+const getBL = async () => {
+	const [results] = await pool.execute('SELECT * FROM bl');
+	return results;
+};
 
 // END BL
 
 
-async function get(key) {
+const get = async (key) => {
 	[ table, id ] = key.split(":");
 	let keys;
 	let res;
@@ -527,7 +329,7 @@ async function get(key) {
 			});
 			return keys;
 	}
-}
+};
 
 /**
  * List the keys in the database.
@@ -536,7 +338,7 @@ async function get(key) {
  * @param prefix - prefix of keys to return (Optional)
  * @return array of keys in the database that match the prefix.
  */
-async function list(prefix=undefined){
+const list = async (prefix = undefined) => {
   let keys = [];
   try{
     if(prefix === undefined){
@@ -565,7 +367,7 @@ async function list(prefix=undefined){
   }
   catch{}
   return keys;
-}
+};
 
 module.exports = {
   addDiscord,
