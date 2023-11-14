@@ -6,7 +6,7 @@
   "dependencies": {
     "@ericw9079/logger": "^2.0.4",
     "@ericw9079/twitch-api": "^1.0.2",
-    "axios": "^0.21.1",
+    "axios": "^1.6.0",
     "discord-api-types": "^0.37.23",
     "discord.js": "^14.6.0",
     "dotenv": "^16.0.1",
