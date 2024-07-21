@@ -1,4 +1,5 @@
 const { REST, Routes, PermissionsBitField, SlashCommandBuilder, ChannelType } = require('discord.js');
+const { Timing, Event } = require('./enums');
 require('dotenv').config();
 
 const clientId = process.env.DISCORD_CLIENT;
@@ -60,14 +61,18 @@ const commands = [
 			subcommand
 				.setName('set')
 				.setDescription('Set the notification message for a channel')
-				.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
+				.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to set the message for').setRequired(true).setMinLength(4).setMaxLength(25))
 				.addStringOption(option => option.setName('message').setDescription('Notification Message. Ommit to reset'))
+				.addStringOption(option => option.setName('timing').setDescription('Time of day the notification message should be used').setChoices(Object.values(Timing).map((e) => ({ name: e, value: e }))))
+				.addStringOption(option => option.setName('event').setDescription('Which event the message should be used for').setChoices(Object.values(Event).map((e) => ({ name: e, value: e }))))
 		)
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('test')
 				.setDescription('Test the notification message for a channel')
 				.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
+				.addStringOption(option => option.setName('timing').setDescription('Time of day to simulate').setChoices(Object.values(Timing).map((e) => ({ name: e, value: e }))))
+				.addStringOption(option => option.setName('event').setDescription('Event to simulate').setChoices(Object.values(Event).map((e) => ({ name: e, value: e }))))
 		),
 	new SlashCommandBuilder()
 		.setName('default')
@@ -106,7 +111,7 @@ const commands = [
 		.setDescription('Get Help')
 		.setDMPermission(true)
 		.setDefaultMemberPermissions(undefined)
-		.addStringOption(option => option.setName('topic').setDescription('Specific help topic').addChoices({ name: 'Message', value: 'message'}, { name: 'Ignore/Unignore', value: 'ingore'})),
+		.addStringOption(option => option.setName('topic').setDescription('Specific help topic').addChoices({ name: 'Message', value: 'message'}, { name: 'Ignore/Unignore', value: 'ignore'})),
 	new SlashCommandBuilder()
 		.setName('ping')
 		.setDescription('Ping.......Pong')

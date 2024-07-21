@@ -2,6 +2,7 @@ const db = require('../sqlDatabase.js');
 const logger = require('@ericw9079/logger');
 const discordManager = require('../discordManager.js');
 const cacheManager = require('../cacheManager.js');
+const { Event, Timing } = require('../enums');
 
 /**
  * List command for GoLive
@@ -29,11 +30,27 @@ module.exports = async (interaction) => {
 						const channel = await discordManager.getChannel(key, guildId);
 						if(channel !== undefined){
 							const name = (await cacheManager.name(key)).replace("_","\\_");
-							const msg  = await discordManager.getMessage(key, guildId, false);
-							if(msg){
+							const [msgs, gameEvent] = await Promise.all([
+								Promise.all([
+									discordManager.getMessage(key, guildId, Event.LIVE, Timing.MORNING, false),
+									discordManager.getMessage(key, guildId, Event.LIVE, Timing.AFTERNOON, false),
+									discordManager.getMessage(key, guildId, Event.LIVE, Timing.NIGHT, false),
+								]),
+								Promise.all([
+									discordManager.getMessage(key, guildId, Event.GAME, Timing.MORNING, false),
+									discordManager.getMessage(key, guildId, Event.GAME, Timing.AFTERNOON, false),
+									discordManager.getMessage(key, guildId, Event.GAME, Timing.NIGHT, false),
+								]),
+							]);
+							const filteredMsgs = msgs.filter((el) => el);
+							const filteredGameEvent = gameEvent.filter((el) => el);
+							if(filteredMsgs.length && filteredGameEvent.length){
+								s += `${name} (in <#${channel}> with custom message and game notifications)\n`;
+							} else if (filteredMsgs.length) {
 								s += `${name} (in <#${channel}> with custom message)\n`;
-							}
-							else{
+							} else if (filteredGameEvent.length) {
+								s += `${name} (in <#${channel}> with game notifications)\n`;
+							} else{
 								s += `${name} (in <#${channel}>)\n`;
 							}
 						}

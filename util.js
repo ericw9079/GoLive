@@ -1,8 +1,11 @@
 const db = require('./sqlDatabase.js');
 const { PermissionsBitField, ChannelType } = require('discord.js');
+const { DateTime } = require("luxon");
 const twitch = require('@ericw9079/twitch-api');
 const discordManager = require('./discordManager.js');
 const cacheManager = require('./cacheManager.js');
+const { format } = require('./messageFormatter.js');
+const { Event, Timing } = require('./enums');
 
 const CANT_SEND = 0;
 const CANT_EMBED = -1;
@@ -20,24 +23,29 @@ const checkPerms = (channel,guild) => {
 };
 
 const lookupChannel = async (channelName) => {
-  const resp = await twitch.get(`search/channels?query=${channelName}&first=1`);
-  if(resp.data.data[0] && resp.data.data[0].broadcaster_login == channelName.toLowerCase()){
+  const { data } = await twitch.get(`search/channels?query=${channelName}&first=1`);
+  if(data.data[0] && data.data[0].broadcaster_login == channelName.toLowerCase()){
     const bl = await db.get("bl");
-    if(bl.includes(Number(resp.data.data[0].id))){
+    if(bl.includes(Number(data.data[0].id))){
       throw new Error("Bl");
     }
-    return resp.data.data[0];
+    return data.data[0];
   }
   return false;
 };
 
-const testMessage = async (twitchChannel, channel) => {
+const testMessage = async (twitchChannel, channel, eventFor = Event.LIVE, timingOf = Timing.ANYTIME) => {
   if (channel && channel.type === ChannelType.GuildText) {
-    let message = await discordManager.getMessage(await cacheManager.uid(twitchChannel), channel.guild.id);
+    let message = await discordManager.getMessage(await cacheManager.uid(twitchChannel), channel.guild.id, eventFor, timingOf);
     if (!message) {
       message = "{channel} went LIVE with {game}! Check them out at {url}";
     }
-    message = message.replace("{url}", `https://twitch.tv/${twitchChannel}`).replace("{game}", "Test Game").replace("{channel}", twitchChannel.replace("_", "\\_")).replace("{title}", "Test Message").replace("{everyone}", "@everyone");
+    message = format(message, {
+		channel: twitchChannel,
+		game: "Test Game",
+		title: "Test Message",
+		name: twitchChannel,
+	});
     const postChannel = await discordManager.getChannel(await cacheManager.uid(twitchChannel), channel.guild.id);
     const perm = checkPerms(postChannel, channel.guild);
     let permResult = "";
@@ -54,6 +62,20 @@ const testMessage = async (twitchChannel, channel) => {
   }
 };
 
+const getTiming = () => {
+	const now = DateTime.now().setZone("America/Toronto");;
+	if (now.hour > 6) {
+		return Timing.NIGHT;
+	}
+	if (now.hour > 12) {
+		return Timing.MORNING;
+	}
+	if (now.hour > 7) {
+		return Timing.AFTERNOON;
+	}
+	return Timing.NIGHT;
+};
+
 module.exports = {
 	lookupChannel,
 	checkPerms,
@@ -63,4 +85,5 @@ module.exports = {
 		CAN_SEND,
 	},
 	testMessage,
+	getTiming,
 };

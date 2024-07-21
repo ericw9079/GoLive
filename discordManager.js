@@ -1,74 +1,71 @@
 const db = require('./sqlDatabase.js');
 const cacheManager = require('./cacheManager.js');
-const statusUpdater = require('./statusUpdater.js');
+const { Event, Timing } = require('./enums');
 
 
-async function addChannel(twitch,guild,channel){
-  let channels = await db.list("Discord");
-  if(channels.filter((channel)=>!isNaN(channel)).length >= 700 && !channels.includes(twitch)){
+const addChannel = async (twitch, guild, channel) => {
+  const channels = await db.list("Discord");
+  if (channels.filter((channel) => !isNaN(channel)).length >= 700 && !channels.includes(twitch)) {
     // Rate limit imposed by Twitch
     return false;
   }
   await db.addDiscord(twitch,`${guild}`,`${channel}`);
   return true;
-}
+};
 
-async function removeChannel(twitch,discord){
+const removeChannel = async (twitch, discord) => {
 	await db.removeDiscord(twitch,`${discord}`);
-	let value = await db.get("Discord:"+twitch);
-	if(Object.entries(value).length == 0){
+	const value = await db.get("Discord:" + twitch);
+	if (Object.entries(value).length == 0) {
 		await db.removeLive(`${twitch}`);
 		await cacheManager.remove(twitch);
-		await statusUpdater.delete(twitch);
 	}
 	return true;
-}
+};
 
-async function addMessage(twitch,guild,message){
-	await db.addMessage(twitch,`${guild}`,message);
+const addMessage = async (twitch, guild, message, eventFor = Event.LIVE, timingOf = Timing.ANYTIME) => {
+	await db.addMessage(twitch,`${guild}`, message, eventFor, timingOf);
 	return true;
-}
+};
 
-async function removeMessage(twitch,discord){
-	await db.removeMessage(twitch,`${discord}`);
+const removeMessage = async (twitch, discord, eventFor = Event.LIVE, timingOf = Timing.ANYTIME) => {
+	await db.removeMessage(twitch, `${discord}`, eventFor, timingOf);
 	return true;
-}
+};
 
-async function addDefault(guild,message){
-  await db.addDefaultMessage(`${guild}`,message);
+const addDefault = async (guild, message) => {
+  await db.addDefaultMessage(`${guild}`, message);
   return true;
-}
+};
 
-async function removeDefault(discord){
+const removeDefault = async (discord) => {
   await db.removeDefaultMessage(`${discord}`);
   return true;
-}
+};
 
-async function getMessage(twitch,discord,global=true){
-  let value = await db.get("Message:"+twitch);
-  if(!discord.startsWith('id')){
-    discord = 'id'+discord;
+const getMessage = async (twitch, discord, eventFor = Event.LIVE, timingOf = Timing.ANYTIME, global = true) => {
+  const message = await db.getMessage(twitch, `${discord}`, eventFor, timingOf);
+  if (message) return message;
+  if (global && eventFor === Event.LIVE) {
+    const globalMessage = await db.get("Default:" + discord);
+    return globalMessage;
   }
-  if(global){
-    let global = await db.get("Default"+discord);
-    return value[discord]?value[discord]:global;
-  }
-  return value[discord];
-}
+  return null;
+};
 
-async function getChannel(twitch,discord){
-  let value = await db.get("Discord:"+twitch);
-  if(!discord.startsWith('id')){
-    discord = 'id'+discord;
+const getChannel = async (twitch, discord) => {
+  const value = await db.get("Discord:" + twitch);
+  if (!discord.startsWith('id')) {
+    discord = 'id' + discord;
   }
   return value[discord];
-}
+};
 
-async function removeAll(twitch,discord){
-  let t1 = await removeChannel(twitch,discord);
-  let t2 = await removeMessage(twitch,discord);
+const removeAll = async (twitch, discord) => {
+  const t1 = await removeChannel(twitch, discord);
+  const t2 = await db.removeAllMessages(twitch, `${discord}`);
   return t1 && t2;
-}
+};
 
 module.exports = {
   addChannel:addChannel,
