@@ -33,11 +33,11 @@ module.exports = async (interaction) => {
 						const result = await discordManager.addChannel(twitchData.id,interaction.guildId, channel.id);
 						if(result && perm == PermissionFlags.CAN_SEND){
 							await interaction.editReply(`:white_check_mark: Notifications will be sent to <#${channel.id}> when ${twitchChannel.toLowerCase()} goes live`);
-							cacheManager.update(twitchData.id, twitchChannel);
+							cacheManager.update(twitchData.id, twitchData.broadcaster_login);
 						}
 						else if(result && perm == PermissionFlags.CANT_EMBED){
 							await interaction.editReply(`:warning: Notifications will be sent to <#${channel.id}> when ${twitchChannel.toLowerCase()} goes live but links won't be embeded`);
-							cacheManager.update(twitchData.id, twitchChannel);
+							cacheManager.update(twitchData.id, twitchData.broadcaster_login);
 						}
 						else{
 							await interaction.editReply(`:x: Not enough space to add ${twitchChannel.toLowerCase()}, use \`/list available\` to list the channels that can be added.`);

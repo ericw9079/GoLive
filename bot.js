@@ -58,7 +58,8 @@ const sendMessage = async (uid, eventFor, data) => {
 					message = messageFormatter.format(message, {
 						...data,
 						game: data.game_name,
-						channel: data.user_name,
+						channel: data.user_login,
+						name: data.user_name,
 					});
 					const perm = checkPerms(discordChannel.id, discordChannel.guild);
 					if (perm !== PermissionFlags.CANT_SEND) {
@@ -102,7 +103,7 @@ const checkLive = async (uid) => {
 	const change = await getChange(uid, channelData);
 	switch (change) {
 		case Change.LIVE:
-			sendMessage(uid, Event.LIVE, data);
+			sendMessage(uid, Event.LIVE, channelData);
 		case Change.SILENT_LIVE:
 			logger.log(`${channelData.user_login} status changed to: ${ONLINE}`);
 			if (change === Change.SILENT_LIVE) {
@@ -114,7 +115,7 @@ const checkLive = async (uid) => {
 			}, COOLDOWN, uid);
 			break;
 		case Change.GAME:
-			sendMessage(uid, Event.GAME, data);
+			sendMessage(uid, Event.GAME, channelData);
 		case Change.SILENT_GAME:
 			logger.log(`${channelData.user_login} game changed to: ${channelData.game_name}`);
 			if (change === Change.SILENT_GAME) {
@@ -127,10 +128,7 @@ const checkLive = async (uid) => {
 			break;
 		case Change.OFFLINE:
 			const name = await cacheManager.name(uid);
-			logger.log(`${channelData.user_login} status changed to: ${ONLINE}`);
-			if (change === Change.SILENT_LIVE) {
-				logger.log("Skipping message: test flag set");
-			}
+			logger.log(`${name} status changed to: ${OFFLINE}`);
 			cooldowns.add(uid);
 			setTimeout((c) => {
 				cooldowns.delete(c);

@@ -62,9 +62,9 @@ const getChannel = async (twitch, discord) => {
 };
 
 const removeAll = async (twitch, discord) => {
-  const t1 = await removeChannel(twitch, discord);
-  const t2 = await db.removeAllMessages(twitch, `${discord}`);
-  return t1 && t2;
+  await removeChannel(twitch, discord);
+  await db.removeAllMessages(twitch, `${discord}`);
+  return true;
 };
 
 module.exports = {
