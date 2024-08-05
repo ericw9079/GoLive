@@ -5,6 +5,16 @@ require('dotenv').config();
 const clientId = process.env.DISCORD_CLIENT;
 const token = process.env.DISCORD_TOKEN;
 
+const eventOptions = Object.values(Event).map((e) => {
+	if (e === Event.LIVE) {
+		return { name: 'Going Live', value: e };
+	}
+	if (e === Event.GAME) {
+		return { name: 'Game Changed', value: e };
+	}
+	return { name: e, value: e };
+});
+
 const commands = [
 	new SlashCommandBuilder()
 		.setName('add')
@@ -64,7 +74,7 @@ const commands = [
 				.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to set the message for').setRequired(true).setMinLength(4).setMaxLength(25))
 				.addStringOption(option => option.setName('message').setDescription('Notification Message. Ommit to reset'))
 				.addStringOption(option => option.setName('timing').setDescription('Time of day the notification message should be used').setChoices(Object.values(Timing).map((e) => ({ name: e, value: e }))))
-				.addStringOption(option => option.setName('event').setDescription('Which event the message should be used for').setChoices(Object.values(Event).map((e) => ({ name: e, value: e }))))
+				.addStringOption(option => option.setName('event').setDescription('Which event the message should be used for').setChoices(eventOptions))
 		)
 		.addSubcommand(subcommand =>
 			subcommand
@@ -72,7 +82,7 @@ const commands = [
 				.setDescription('Test the notification message for a channel')
 				.addStringOption(option => option.setName('twitch_channel').setDescription('Twitch channel to ignore notifications for').setRequired(true).setMinLength(4).setMaxLength(25))
 				.addStringOption(option => option.setName('timing').setDescription('Time of day to simulate').setChoices(Object.values(Timing).map((e) => ({ name: e, value: e }))))
-				.addStringOption(option => option.setName('event').setDescription('Event to simulate').setChoices(Object.values(Event).map((e) => ({ name: e, value: e }))))
+				.addStringOption(option => option.setName('event').setDescription('Event to simulate').setChoices(eventOptions))
 		),
 	new SlashCommandBuilder()
 		.setName('default')
