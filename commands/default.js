@@ -1,5 +1,5 @@
-const db = require('../sqlDatabase.js');
 const logger = require('@ericw9079/logger');
+const db = require('../sqlDatabase.js');
 const { checkPerms, PermissionFlags } = require('../util.js');
 const discordManager = require('../discordManager.js');
 

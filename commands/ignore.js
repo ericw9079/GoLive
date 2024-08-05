@@ -1,5 +1,5 @@
-const db = require('../sqlDatabase.js');
 const logger = require('@ericw9079/logger');
+const db = require('../sqlDatabase.js');
 const cacheManager = require('../cacheManager.js');
 const { lookupChannel } = require('../util.js');
 
