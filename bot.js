@@ -98,7 +98,7 @@ const getChange = async (uid, data) => {
 	return change;
 };
 
-const logChange = (change, uid, channelData) => {
+const logChange = async (change, uid, channelData) => {
 	const name = channelData?.user_login || await cacheManager.name(uid);
 	const game = channelData?.game_name || NOGAME;
 	let logMessage = '';
@@ -129,7 +129,7 @@ const checkLive = async (uid) => {
 	const { data } = await twitch.get(`streams?user_id=${uid}&first=1`);
 	const channelData = data.data[0];
 	const change = await getChange(uid, channelData);
-	if (!cooldows.has(uid)) {
+	if (!cooldowns.has(uid)) {
 		switch (change) {
 			case Change.LIVE:
 				sendMessage(uid, Event.LIVE, channelData);
@@ -161,7 +161,7 @@ const checkLive = async (uid) => {
 				break;
 		}
 	}
-	logChange(change, uid, channelData);
+	await logChange(change, uid, channelData);
 	if (![Change.OFFLINE, Change.NONE].includes(change)) {
 		await cacheManager.update(uid, channelData.user_login);
 		await db.setLive(uid, ONLINE, channelData.game_name);
