@@ -37,6 +37,7 @@ const lookupChannel = async (channelName) => {
 const testMessage = async (twitchChannel, channel, eventFor = Event.LIVE, timingOf = Timing.ANYTIME) => {
   if (channel && channel.type === ChannelType.GuildText) {
     let message = await discordManager.getMessage(await cacheManager.uid(twitchChannel), channel.guild.id, eventFor, timingOf);
+	if (!message && eventFor !== Event.LIVE) return ":x: Game changed events are not enabled for this channel";
     if (!message) {
       message = "{channel} went LIVE with {game}! Check them out at {url}";
     }
@@ -63,7 +64,7 @@ const testMessage = async (twitchChannel, channel, eventFor = Event.LIVE, timing
 };
 
 const getTiming = () => {
-	const now = DateTime.now().setZone("America/Toronto");;
+	const now = DateTime.now().setZone("America/Toronto");
 	if (now.hour > 6) {
 		return Timing.NIGHT;
 	}

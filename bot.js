@@ -52,6 +52,7 @@ const sendMessage = async (uid, eventFor, data) => {
 				discordChannel = guild.channels.resolve(discordChannel);
 				if (discordChannel && discordChannel.isTextBased()) {
 					let message = await discordManager.getMessage(uid, guildId.replace("id",""), eventFor, getTiming());
+					if (!message && eventFor !== Event.LIVE) return;
 					if (!message) {
 						message = "{channel} went LIVE with {game}! Check them out at {url}";
 					}
