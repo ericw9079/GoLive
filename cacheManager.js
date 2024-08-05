@@ -1,7 +1,7 @@
 const db = require('./sqlDatabase.js');
 
 async function updateEntry(uid,name){
-  let value = await db.get("cache",{});
+  let value = await db.get("cache");
   if(value === null){
     value = {};
   }

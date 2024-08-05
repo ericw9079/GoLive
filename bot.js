@@ -98,44 +98,70 @@ const getChange = async (uid, data) => {
 	return change;
 };
 
+const logChange = (change, uid, channelData) => {
+	const name = channelData?.user_login || await cacheManager.name(uid);
+	const game = channelData?.game_name || NOGAME;
+	let logMessage = '';
+	switch (change) {
+		case Change.LIVE:
+		case Change.SILENT_LIVE:
+			logMessage = `${channelData.user_login} status changed to: ${ONLINE}`;
+			break;
+		case Change.GAME:
+		case Change.SILENT_GAME:
+			logMessage = `${channelData.user_login} game changed to: ${channelData.game_name}`;
+			break;
+		case Change.OFFLINE:
+			logMessage = `${name} status changed to: ${OFFLINE}`;
+			break;
+		default:
+			logMessage = '';
+	}
+	if (logMessage) {
+		if (cooldowns.has(uid)) {
+			logMessage += ' (while in cooldown)';
+		}
+		logger.log(logMessage);
+	}
+}
+
 const checkLive = async (uid) => {
 	const { data } = await twitch.get(`streams?user_id=${uid}&first=1`);
 	const channelData = data.data[0];
 	const change = await getChange(uid, channelData);
-	switch (change) {
-		case Change.LIVE:
-			sendMessage(uid, Event.LIVE, channelData);
-		case Change.SILENT_LIVE:
-			logger.log(`${channelData.user_login} status changed to: ${ONLINE}`);
-			if (change === Change.SILENT_LIVE) {
+	if (!cooldows.has(uid)) {
+		switch (change) {
+			case Change.LIVE:
+				sendMessage(uid, Event.LIVE, channelData);
+				cooldowns.add(uid);
+				setTimeout((c) => {
+					cooldowns.delete(c);
+				}, COOLDOWN, uid);
+				break;
+			case Change.GAME:
+				sendMessage(uid, Event.GAME, channelData);
+				cooldowns.add(uid);
+				setTimeout((c) => {
+					cooldowns.delete(c);
+				}, COOLDOWN, uid);
+				break;
+			case Change.SILENT_GAME:
+			case Change.SILENT_LIVE:
 				logger.log("Skipping message: test flag set");
-			}
-			cooldowns.add(uid);
-			setTimeout((c) => {
-				cooldowns.delete(c);
-			}, COOLDOWN, uid);
-			break;
-		case Change.GAME:
-			sendMessage(uid, Event.GAME, channelData);
-		case Change.SILENT_GAME:
-			logger.log(`${channelData.user_login} game changed to: ${channelData.game_name}`);
-			if (change === Change.SILENT_GAME) {
-				logger.log("Skipping message: test flag set");
-			}
-			cooldowns.add(uid);
-			setTimeout((c) => {
-				cooldowns.delete(c);
-			}, COOLDOWN, uid);
-			break;
-		case Change.OFFLINE:
-			const name = await cacheManager.name(uid);
-			logger.log(`${name} status changed to: ${OFFLINE}`);
-			cooldowns.add(uid);
-			setTimeout((c) => {
-				cooldowns.delete(c);
-			}, COOLDOWN, uid);
-			break;
+				cooldowns.add(uid);
+				setTimeout((c) => {
+					cooldowns.delete(c);
+				}, COOLDOWN, uid);
+				break;
+			case Change.OFFLINE:
+				cooldowns.add(uid);
+				setTimeout((c) => {
+					cooldowns.delete(c);
+				}, COOLDOWN, uid);
+				break;
+		}
 	}
+	logChange(change, uid, channelData);
 	if (![Change.OFFLINE, Change.NONE].includes(change)) {
 		await cacheManager.update(uid, channelData.user_login);
 		await db.setLive(uid, ONLINE, channelData.game_name);
