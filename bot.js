@@ -129,6 +129,7 @@ const checkLive = async (uid) => {
 	const { data } = await twitch.get(`streams?user_id=${uid}&first=1`);
 	const channelData = data.data[0];
 	const change = await getChange(uid, channelData);
+	await logChange(change, uid, channelData);
 	if (!cooldowns.has(uid)) {
 		switch (change) {
 			case Change.LIVE:
@@ -161,7 +162,6 @@ const checkLive = async (uid) => {
 				break;
 		}
 	}
-	await logChange(change, uid, channelData);
 	if (![Change.OFFLINE, Change.NONE].includes(change)) {
 		await cacheManager.update(uid, channelData.user_login);
 		await db.setLive(uid, ONLINE, channelData.game_name);

@@ -4,14 +4,13 @@
   "description": "Reliable discord notifications when a streamer goes live on twitch",
   "main": "bot.js",
   "dependencies": {
+    "@ericw9079/database": "^1.0.0",
     "@ericw9079/logger": "^3.0.1",
-    "@ericw9079/twitch-api": "^1.0.5",
-    "axios": "^1.6.8",
+    "@ericw9079/twitch-api": "^1.0.6",
     "discord-api-types": "^0.37.23",
     "discord.js": "^14.6.0",
     "dotenv": "^16.0.1",
-    "luxon": "^3.4.4",
-    "mysql2": "^3.9.8"
+    "luxon": "^3.4.4"
   },
   "scripts": {
     "deployCommands": "node deploy-commands.js",
