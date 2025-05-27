@@ -13,6 +13,9 @@
     "dotenv": "^16.0.1",
     "luxon": "^3.4.4"
   },
+  "overrides": {
+	"undici": "^6.21.2"
+  },
   "scripts": {
     "deployCommands": "node deploy-commands.js",
     "start": "node ."
