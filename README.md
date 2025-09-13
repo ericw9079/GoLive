@@ -1,7 +1,7 @@
 # GoLive 
 Reliable discord notifications when streamers go live on Twitch.  
 Check out the live channels at: https://GoLive.ericw.tech  
-© 2024 ericw9079
+© 2025 ericw9079
 ## Features
 * Ability to set custom messages per streamer
 * Ability to set a custom message depending on the time of day (Opt-in)
@@ -130,4 +130,4 @@ Supported Events for notifications
 
 # Credits
 Image created by Shupik123  
-© 2024 ericw9079
+© 2025 ericw9079
