@@ -13,7 +13,7 @@
     "luxon": "^3.4.4"
   },
   "overrides": {
-    "undici": "^6.21.2"
+    "undici": "^6.24.0"
   },
   "scripts": {
     "deployCommands": "node deploy-commands.js",
