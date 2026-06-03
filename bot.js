@@ -385,7 +385,7 @@ const start = () => {
 	getLive();
 }
 
-client.on("ready", () => {
+client.on("clientReady", () => {
 	if (firstLogin !== 1) {
 	  firstLogin = 1;
 	  logger.log("Discord client connected successfully.");
@@ -400,7 +400,7 @@ client.on("ready", () => {
 
 });
 
-client.once("ready", async () => {
+client.once("clientReady", async () => {
 	const channel = client.channels.cache.get(logChannel);
 	try {
 		const webhooks = await channel.fetchWebhooks();
