@@ -1,7 +1,7 @@
 const db = require('@ericw9079/database');
 const { LiveStatus, NOGAME, Timing, Event } = require('./enums');
 
-db.connect('golive', 'bot', 'golive', 'goliveDb', {
+db.connect('golive', 'bot', 'golive', 'db', {
   supportBigNumbers: true
 });
 
