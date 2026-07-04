@@ -5,7 +5,7 @@ const { get } = require('../sqlDatabase.js');
  * © ericw9079 2022
  */
 module.exports = async (interaction) => {
-	const sent = await interaction.reply({ content: 'Pinging...', fetchReply: true });
+	const sent = await interaction.reply({ content: 'Pinging...', withResponse: true });
 	let dbStatus;
 	try {
 		dbStatus = await Promise.race([
